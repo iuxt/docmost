@@ -8,6 +8,7 @@ import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import { ShareRepo } from '@docmost/db/repos/share/share.repo';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
+import { highlightSubstrings } from './search-highlight';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const tsquery = require('pg-tsquery')();
@@ -40,8 +41,15 @@ export class SearchService {
     if (query.length < 1 && !browseByFilters) {
       return { items: [] };
     }
-    const searchQuery = tsquery(query + '*');
     const titleOnly = searchParams.titleOnly === true;
+    // PostgreSQL's default parser treats contiguous Chinese text (including
+    // adjacent digits/Latin letters) as one lexeme. Match inside it literally.
+    const substringSearch = !titleOnly && /\p{Script=Han}/u.test(query);
+    const substringTerms = [...new Set(query.split(/\s+/u).filter(Boolean))];
+    const substringPatterns = substringTerms.map(
+      (term) => `%${term.replace(/[\\%_]/g, '\\$&')}%`,
+    );
+    const searchQuery = substringSearch ? '' : tsquery(query + '*');
     const titleQuery = query;
     // escape LIKE wildcards; ranking keeps the raw query
     const titleLikeQuery = query.replace(/[\\%_]/g, '\\$&');
@@ -52,9 +60,17 @@ export class SearchService {
         ? sql<number>`word_similarity(lower(${titleQuery}), lower(pages.title))`.as(
             'rank',
           )
-        : sql<number>`ts_rank(tsv, to_tsquery('english', f_unaccent(${searchQuery})))`.as(
-            'rank',
-          );
+        : substringSearch
+          ? sql<number>`${sql.join(
+              substringPatterns.map(
+                (pattern) =>
+                  sql`CASE WHEN lower(pages.title) LIKE lower(${pattern}) THEN 1 ELSE 0 END`,
+              ),
+              sql` + `,
+            )}`.as('rank')
+          : sql<number>`ts_rank(tsv, to_tsquery('english', f_unaccent(${searchQuery})))`.as(
+              'rank',
+            );
 
     let queryResults = this.db
       .selectFrom('pages')
@@ -69,11 +85,27 @@ export class SearchService {
         'updatedAt',
         rankColumn,
       ])
-      .$if(!browseByFilters && !titleOnly, (qb) =>
+      .$if(!browseByFilters && !titleOnly && !substringSearch, (qb) =>
         qb.where(
           'tsv',
           '@@',
           sql<string>`to_tsquery('english', f_unaccent(${searchQuery}))`,
+        ),
+      )
+      .$if(substringSearch, (qb) =>
+        qb.where((eb) =>
+          eb.and(
+            substringPatterns.map((pattern) =>
+              eb.or([
+                eb(sql`lower(pages.title)`, 'like', sql`lower(${pattern})`),
+                eb(
+                  sql`lower(pages.text_content)`,
+                  'like',
+                  sql`lower(${pattern})`,
+                ),
+              ]),
+            ),
+          ),
         ),
       )
       .$if(!browseByFilters && titleOnly, (qb) =>
@@ -140,20 +172,22 @@ export class SearchService {
         return { items: [] };
       }
 
-      const isRestricted =
-        await this.pagePermissionRepo.hasRestrictedAncestor(share.pageId);
+      const isRestricted = await this.pagePermissionRepo.hasRestrictedAncestor(
+        share.pageId,
+      );
       if (isRestricted) {
         return { items: [] };
       }
 
       const pageIdsToSearch = [];
       if (share.includeSubPages) {
-        const pageList = await this.pageRepo.getPageAndDescendantsExcludingRestricted(
-          share.pageId,
-          {
-            includeContent: false,
-          },
-        );
+        const pageList =
+          await this.pageRepo.getPageAndDescendantsExcludingRestricted(
+            share.pageId,
+            {
+              includeContent: false,
+            },
+          );
 
         pageIdsToSearch.push(...pageList.map((page) => page.id));
       } else {
@@ -188,14 +222,19 @@ export class SearchService {
     }
 
     if (!browseByFilters && !titleOnly && results.length > 0) {
+      // Retrieve a bounded excerpt around the first literal body match, even
+      // when it appears beyond the full-text headline's 100,000 character cap.
+      const firstMatch = sql`least(${sql.join(
+        substringTerms.map(
+          (term) => sql`nullif(strpos(lower(text_content), lower(${term})), 0)`,
+        ),
+      )})`;
+      const highlightColumn = substringSearch
+        ? sql<string>`substring(text_content from greatest(1, ${firstMatch} - 60) for 320)`
+        : sql<string>`ts_headline('english', substring(text_content, 1, 100000), to_tsquery('english', f_unaccent(${searchQuery})),'MinWords=9, MaxWords=10, MaxFragments=3')`;
       const highlights = await this.db
         .selectFrom('pages')
-        .select([
-          'id',
-          sql<string>`ts_headline('english', substring(text_content, 1, 100000), to_tsquery('english', f_unaccent(${searchQuery})),'MinWords=9, MaxWords=10, MaxFragments=3')`.as(
-            'highlight',
-          ),
-        ])
+        .select(['id', highlightColumn.as('highlight')])
         .where(
           'id',
           'in',
@@ -210,7 +249,14 @@ export class SearchService {
 
     //@ts-ignore
     const searchResults = results.map((result: SearchResponseDto) => {
-      result.wholeWord = true
+      result.wholeWord = !substringSearch;
+      if (substringSearch) {
+        Object.assign(
+          result,
+          highlightSubstrings(result.highlight ?? '', substringTerms),
+        );
+        return result;
+      }
       if (!result.highlight) {
         result.highlight = '';
         result.matchedText = [];
