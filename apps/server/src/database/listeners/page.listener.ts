@@ -25,9 +25,14 @@ export class PageListener {
   async handlePageCreated(event: PageEvent) {
     const { pageIds, workspaceId } = event;
     if (this.isTypesense()) {
-      await this.searchQueue.add(QueueJob.PAGE_CREATED, {
-        pageIds,
-      });
+      await this.searchQueue.add(
+        QueueJob.PAGE_CREATED,
+        { pageIds },
+        {
+          delay: 1000,
+          attempts: 5,
+        },
+      );
     }
 
     await this.aiQueue.add(QueueJob.PAGE_CREATED, { pageIds, workspaceId });
@@ -37,7 +42,14 @@ export class PageListener {
   async handlePageUpdated(event: PageEvent) {
     const { pageIds } = event;
 
-    await this.searchQueue.add(QueueJob.PAGE_UPDATED, { pageIds });
+    await this.searchQueue.add(
+      QueueJob.PAGE_UPDATED,
+      { pageIds },
+      {
+        // Updates may be emitted before the surrounding transaction commits.
+        delay: this.isTypesense() ? 1000 : 0,
+      },
+    );
   }
 
   @OnEvent(EventName.PAGE_DELETED)

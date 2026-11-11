@@ -2,19 +2,67 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { SearchController } from './search.controller';
 
+// Keep controller tests independent of each service's application dependencies.
+jest.mock('./search.service', () => ({ SearchService: class {} }));
+jest.mock('./typesense-search.service', () => ({
+  TypesenseSearchService: class {},
+}));
+jest.mock('../casl/abilities/space-ability.factory', () => ({
+  __esModule: true,
+  default: class {},
+}));
+jest.mock('../../common/guards/jwt-auth.guard', () => ({
+  JwtAuthGuard: class {},
+}));
+jest.mock('../public-space/public-space.service', () => ({
+  PublicSpaceService: class {},
+}));
+jest.mock('@docmost/db/repos/page/page.repo', () => ({ PageRepo: class {} }));
+jest.mock('../share/share.service', () => ({ ShareService: class {} }));
+jest.mock('@docmost/db/repos/share/share.repo', () => ({
+  ShareRepo: class {},
+}));
+
 describe('SearchController', () => {
   let controller: SearchController;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SearchController],
-    }).compile();
+    })
+      .useMocker(() => ({}))
+      .compile();
 
     controller = module.get<SearchController>(SearchController);
   });
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  it('routes Typesense searches to the bundled provider with the authenticated scope', async () => {
+    const typesense = {
+      searchPage: jest.fn().mockResolvedValue({ items: [] }),
+    };
+    const controller = new SearchController(
+      {} as any,
+      {} as any,
+      { getSearchDriver: () => 'typesense' } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      typesense as any,
+    );
+    await controller.pageSearch(
+      { query: '中文', shareId: 'injected-share' } as any,
+      { id: 'user-1' } as any,
+      { id: 'workspace-1' } as any,
+    );
+    expect(typesense.searchPage).toHaveBeenCalledWith(
+      { query: '中文' },
+      { userId: 'user-1', workspaceId: 'workspace-1' },
+    );
   });
 });
 
@@ -86,7 +134,9 @@ describe('SearchController public-space-search gate', () => {
       'handbook',
       workspace,
     );
-    expect(pageRepo.getSpacePagesExcludingRestricted).toHaveBeenCalledWith('s1');
+    expect(pageRepo.getSpacePagesExcludingRestricted).toHaveBeenCalledWith(
+      's1',
+    );
     expect(searchService.searchPage).toHaveBeenCalledWith(
       { query: 'roadmap', spaceSlug: 'handbook' },
       { workspaceId: 'ws1', publicPageIds: ['p1', 'p2'] },

@@ -12,7 +12,6 @@ const enterpriseFeatures = [
   "Audit Logs",
   "Enterprise Controls",
   "API Keys",
-  "Advanced Search Engine Support",
   "Full-text Search in Attachments (PDF, DOCX)",
   "Resolve Comments",
   "Confluence Import",

@@ -3,7 +3,18 @@
   "homepage": "https://docmost.com",
   "version": "0.97.0",
   "private": true,
+  "config": {
+    "image_prefix": "registry.cn-hangzhou.aliyuncs.com/iuxt",
+    "deploy_host": "root@zhaoyun.babudiu.com",
+    "deploy_dir": "/root/nebula/docmost"
+  },
   "scripts": {
+    "bump-version": "bash scripts/build-version.sh --bump patch",
+    "bump-minor": "bash scripts/build-version.sh --bump minor",
+    "bump-major": "bash scripts/build-version.sh --bump major",
+    "docker-build": "node scripts/release.cjs docker-build",
+    "docker-push": "node scripts/release.cjs docker-push",
+    "deploy": "node scripts/release.cjs deploy",
     "build": "nx run-many -t build",
     "start": "pnpm --filter ./apps/server run start:prod",
     "collab": "pnpm --filter ./apps/server run collab:prod",

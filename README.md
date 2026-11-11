@@ -14,6 +14,81 @@
 
 To get started with Docmost, please refer to our [documentation](https://docmost.com/docs) or try our [cloud version](https://docmost.com/pricing) .
 
+### Build and deploy your own image
+
+Set the image registry/namespace and deployment destination in the root
+`package.json` before building or deploying:
+
+```json
+"config": {
+  "image_prefix": "ghcr.io/your-org",
+  "deploy_host": "user@server",
+  "deploy_dir": "/opt/docmost"
+}
+```
+
+```sh
+pnpm run bump-version # Increment patch; use bump-minor or bump-major for other releases
+pnpm run docker-build
+pnpm run docker-push
+pnpm run deploy
+```
+
+Version bumps update the root, client, and server `package.json` files without
+creating a Git commit or tag. Image commands use the root package version by
+default; set `ITIER_VERSION` to override the image tag. `config.image_prefix` is
+the registry/namespace before `/docmost` and defaults to `docmost`.
+`IMAGE_PREFIX`, `DEPLOY_HOST`, and `DEPLOY_DIR` environment variables override
+the corresponding `package.json` settings when provided. Set `config.deploy_host`
+before deploying; it is empty by default.
+
+Both Docker commands build `linux/amd64` and `linux/arm64` using Buildx Bake and
+the standard `Dockerfile`. The builder must support both platforms (through
+native workers or emulation). `docker-build` loads the images locally and requires
+the containerd image store; the classic Docker image store cannot load a
+multi-platform image. `docker-push` publishes the multi-platform image to the
+registry after you have logged in with `docker login`.
+
+For registry compatibility (including Alibaba ACR), build attestations
+(provenance and SBOM) are disabled, and `docker-push` exports Docker media types
+with OCI artifact output disabled. Both image architectures are still included.
+
+Deploy requires SSH access to a server with Docker Compose and an existing
+deployment directory containing this repository's updated `docker-compose.yml`
+and the configured environment/secrets. The server must have registry access.
+It pulls the selected image and recreates only the `docmost` service. Preview
+the SSH command with `pnpm run deploy --dry-run`.
+
+### Typesense search
+
+This fork includes an independent Typesense integration for page titles and body
+text. Set `SEARCH_DRIVER=typesense`, `TYPESENSE_URL`, `TYPESENSE_API_KEY`, and
+optionally `TYPESENSE_LOCALE` (`en` by default, `zh` for Chinese). The API key
+stays on the server. Typesense's [collection documentation](https://typesense.org/docs/30.1/api/collections.html)
+describes language-specific tokenization.
+
+For Docker Compose, put a strong `TYPESENSE_API_KEY` in `.env` and run:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.search.yml up -d
+```
+
+The override uses Chinese tokenization by default, persists the index, and keeps
+Typesense off the host's public ports. Build the updated Docmost image before
+starting it; the upstream image does not include this integration.
+
+Existing pages are indexed in background batches on startup, then reconciled
+hourly. Creates, edits, restores, and deletes are synchronized through the search
+queue. Initial indexing is asynchronous, so results can be incomplete until it
+finishes. Changing the locale builds a new collection; old locale collections
+remain available for manual cleanup.
+
+Search results are checked against live workspace, space, page, public-space,
+and share permissions in PostgreSQL. Creator, label, and archived-space filters
+also use live database state. Typesense failures fall back to database search;
+set `SEARCH_DRIVER=database` to disable the integration. This implementation
+covers pages; attachment text and AI search are separate features.
+
 ## Features
 
 - Real-time collaboration

@@ -128,4 +128,64 @@ describe('SearchService page matching', () => {
     expect(executeQuery.mock.calls[0][0].sql).toContain('"workspace_id" =');
     expect(executeQuery.mock.calls[0][0].sql).toContain('"deleted_at" is null');
   });
+
+  it('authorizes indexed candidates using live filters without PostgreSQL text matching', async () => {
+    const { service, executeQuery, pagePermissionRepo } = buildService(
+      [{ id: 'page-1', title: 'Collaboration' }],
+      'Collaboration guide',
+    );
+    const result = await service.searchPage(
+      {
+        query: 'colaboration',
+        spaceId: 'space-1',
+        creatorId: 'creator-1',
+        labelIds: ['label-1'],
+      } as any,
+      { ...opts, candidatePageIds: ['page-1'] },
+    );
+    const query = executeQuery.mock.calls[0][0];
+    expect(query.sql).not.toContain('to_tsquery');
+    expect(query.sql).not.toContain(' like ');
+    expect(query.sql).toContain('"workspace_id" =');
+    expect(query.sql).toContain('"deleted_at" is null');
+    expect(query.sql).toContain('"page_labels"');
+    expect(query.parameters).toEqual(
+      expect.arrayContaining([
+        'workspace-1',
+        'space-1',
+        'creator-1',
+        'label-1',
+        'page-1',
+      ]),
+    );
+    expect(pagePermissionRepo.filterAccessiblePageIds).toHaveBeenCalled();
+    expect(result.items[0].id).toBe('page-1');
+  });
+
+  it('restores index relevance order after database hydration', async () => {
+    const { service, pagePermissionRepo } = buildService([
+      { id: 'page-1' },
+      { id: 'page-2' },
+    ]);
+    pagePermissionRepo.filterAccessiblePageIds.mockResolvedValue([
+      'page-1',
+      'page-2',
+    ]);
+    const result = await service.searchPage({ query: 'guide' } as any, {
+      ...opts,
+      candidatePageIds: ['page-2', 'page-1'],
+    });
+    expect(result.items.map((item) => item.id)).toEqual(['page-2', 'page-1']);
+  });
+
+  it('does not search the database for an empty candidate list', async () => {
+    const { service, executeQuery } = buildService();
+    expect(
+      await service.searchPage({ query: 'guide' } as any, {
+        ...opts,
+        candidatePageIds: [],
+      }),
+    ).toEqual({ items: [] });
+    expect(executeQuery).not.toHaveBeenCalled();
+  });
 });

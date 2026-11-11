@@ -5,7 +5,6 @@ import {
   ForbiddenException,
   HttpCode,
   HttpStatus,
-  Logger,
   NotFoundException,
   Post,
   UseGuards,
@@ -29,7 +28,7 @@ import {
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { Public } from 'src/common/decorators/public.decorator';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
-import { ModuleRef } from '@nestjs/core';
+import { TypesenseSearchService } from './typesense-search.service';
 import { PublicSpaceService } from '../public-space/public-space.service';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { ShareService } from '../share/share.service';
@@ -38,8 +37,6 @@ import { ShareRepo } from '@docmost/db/repos/share/share.repo';
 @UseGuards(JwtAuthGuard)
 @Controller('search')
 export class SearchController {
-  private readonly logger = new Logger(SearchController.name);
-
   constructor(
     private readonly searchService: SearchService,
     private readonly spaceAbility: SpaceAbilityFactory,
@@ -48,7 +45,7 @@ export class SearchController {
     private readonly pageRepo: PageRepo,
     private readonly shareService: ShareService,
     private readonly shareRepo: ShareRepo,
-    private moduleRef: ModuleRef,
+    private readonly typesenseSearchService: TypesenseSearchService,
   ) {}
 
   @HttpCode(HttpStatus.OK)
@@ -171,30 +168,6 @@ export class SearchController {
       publicPageIds?: string[];
     },
   ) {
-    const { userId, workspaceId, publicPageIds } = opts;
-    let TypesenseModule: any;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      TypesenseModule = require('./../../ee/typesense/services/page-search.service');
-
-      const PageSearchService = this.moduleRef.get(
-        TypesenseModule.PageSearchService,
-        {
-          strict: false,
-        },
-      );
-
-      return PageSearchService.searchPage(searchParams, {
-        userId: userId,
-        workspaceId,
-        publicPageIds,
-      });
-    } catch (err) {
-      this.logger.debug(
-        'Typesense module requested but enterprise module not bundled in this build',
-      );
-    }
-
-    throw new BadRequestException('Enterprise Typesense search module missing');
+    return this.typesenseSearchService.searchPage(searchParams, opts);
   }
 }

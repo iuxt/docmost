@@ -1,6 +1,6 @@
 services:
   docmost:
-    image: docmost/docmost:latest
+    image: ${IMAGE_PREFIX:-docmost}/docmost:${ITIER_VERSION:-latest}
     depends_on:
       - db
       - redis

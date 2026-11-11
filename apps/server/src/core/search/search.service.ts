@@ -29,9 +29,15 @@ export class SearchService {
       userId?: string;
       workspaceId: string;
       publicPageIds?: string[];
+      // Internal only: candidate IDs ranked by an external search engine.
+      candidatePageIds?: string[];
     },
   ): Promise<{ items: SearchResponseDto[] }> {
     const query = searchParams.query?.trim() ?? '';
+    const indexedSearch = opts.candidatePageIds !== undefined;
+    if (indexedSearch && opts.candidatePageIds.length === 0) {
+      return { items: [] };
+    }
     const labelIds = [...new Set(searchParams.labelIds ?? [])];
     // selected filters (labels, creator) are browsable without a query
     const browseByFilters =
@@ -44,7 +50,8 @@ export class SearchService {
     const titleOnly = searchParams.titleOnly === true;
     // PostgreSQL's default parser treats contiguous Chinese text (including
     // adjacent digits/Latin letters) as one lexeme. Match inside it literally.
-    const substringSearch = !titleOnly && /\p{Script=Han}/u.test(query);
+    const substringSearch =
+      !titleOnly && (indexedSearch || /\p{Script=Han}/u.test(query));
     const substringTerms = [...new Set(query.split(/\s+/u).filter(Boolean))];
     const substringPatterns = substringTerms.map(
       (term) => `%${term.replace(/[\\%_]/g, '\\$&')}%`,
@@ -54,23 +61,24 @@ export class SearchService {
     // escape LIKE wildcards; ranking keeps the raw query
     const titleLikeQuery = query.replace(/[\\%_]/g, '\\$&');
 
-    const rankColumn = browseByFilters
-      ? sql<number>`0`.as('rank')
-      : titleOnly
-        ? sql<number>`word_similarity(lower(${titleQuery}), lower(pages.title))`.as(
-            'rank',
-          )
-        : substringSearch
-          ? sql<number>`${sql.join(
-              substringPatterns.map(
-                (pattern) =>
-                  sql`CASE WHEN lower(pages.title) LIKE lower(${pattern}) THEN 1 ELSE 0 END`,
-              ),
-              sql` + `,
-            )}`.as('rank')
-          : sql<number>`ts_rank(tsv, to_tsquery('english', f_unaccent(${searchQuery})))`.as(
+    const rankColumn =
+      browseByFilters || indexedSearch
+        ? sql<number>`0`.as('rank')
+        : titleOnly
+          ? sql<number>`word_similarity(lower(${titleQuery}), lower(pages.title))`.as(
               'rank',
-            );
+            )
+          : substringSearch
+            ? sql<number>`${sql.join(
+                substringPatterns.map(
+                  (pattern) =>
+                    sql`CASE WHEN lower(pages.title) LIKE lower(${pattern}) THEN 1 ELSE 0 END`,
+                ),
+                sql` + `,
+              )}`.as('rank')
+            : sql<number>`ts_rank(tsv, to_tsquery('english', f_unaccent(${searchQuery})))`.as(
+                'rank',
+              );
 
     let queryResults = this.db
       .selectFrom('pages')
@@ -85,14 +93,16 @@ export class SearchService {
         'updatedAt',
         rankColumn,
       ])
-      .$if(!browseByFilters && !titleOnly && !substringSearch, (qb) =>
-        qb.where(
-          'tsv',
-          '@@',
-          sql<string>`to_tsquery('english', f_unaccent(${searchQuery}))`,
-        ),
+      .$if(
+        !indexedSearch && !browseByFilters && !titleOnly && !substringSearch,
+        (qb) =>
+          qb.where(
+            'tsv',
+            '@@',
+            sql<string>`to_tsquery('english', f_unaccent(${searchQuery}))`,
+          ),
       )
-      .$if(substringSearch, (qb) =>
+      .$if(!indexedSearch && substringSearch, (qb) =>
         qb.where((eb) =>
           eb.and(
             substringPatterns.map((pattern) =>
@@ -108,7 +118,7 @@ export class SearchService {
           ),
         ),
       )
-      .$if(!browseByFilters && titleOnly, (qb) =>
+      .$if(!indexedSearch && !browseByFilters && titleOnly, (qb) =>
         qb.where((eb) =>
           eb(
             sql`lower(pages.title)`,
@@ -131,6 +141,8 @@ export class SearchService {
         ),
       )
       .where('deletedAt', 'is', null)
+      .where('workspaceId', '=', opts.workspaceId)
+      .$if(indexedSearch, (qb) => qb.where('id', 'in', opts.candidatePageIds))
       .$if(browseByFilters, (qb) => qb.orderBy('updatedAt', 'desc'))
       .$if(!browseByFilters, (qb) => qb.orderBy('rank', 'desc'))
       .limit(searchParams.limit || 25)
@@ -207,6 +219,13 @@ export class SearchService {
 
     //@ts-ignore
     let results: any[] = await queryResults.execute();
+
+    if (indexedSearch) {
+      const positions = new Map(
+        opts.candidatePageIds.map((id, index) => [id, index]),
+      );
+      results.sort((a, b) => positions.get(a.id) - positions.get(b.id));
+    }
 
     // Filter results by page-level permissions (if user is authenticated)
     if (opts.userId && results.length > 0) {

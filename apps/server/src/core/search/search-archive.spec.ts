@@ -9,6 +9,18 @@ import {
 } from 'kysely';
 import { SearchService } from './search.service';
 
+// These tests exercise search query scoping, not repository implementations.
+jest.mock('@docmost/db/repos/page/page.repo', () => ({ PageRepo: class {} }));
+jest.mock('@docmost/db/repos/share/share.repo', () => ({
+  ShareRepo: class {},
+}));
+jest.mock('@docmost/db/repos/space/space-member.repo', () => ({
+  SpaceMemberRepo: class {},
+}));
+jest.mock('@docmost/db/repos/page/page-permission.repo', () => ({
+  PagePermissionRepo: class {},
+}));
+
 function buildService() {
   const db = new Kysely<any>({
     dialect: {
