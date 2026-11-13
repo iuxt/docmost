@@ -11,6 +11,7 @@ import WorkspaceDefaultLanguage from "@/features/workspace/components/settings/c
 import PersonalSpacesSetting from "@/ee/personal-space/components/personal-spaces-setting.tsx";
 import AllowPublicSpaces from "@/features/workspace/components/settings/components/allow-public-spaces.tsx";
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
+import WorkspaceSearchSettings from "@/features/workspace/components/settings/components/workspace-search-settings.tsx";
 
 export default function WorkspaceSettings() {
   const { t } = useTranslation();
@@ -20,6 +21,9 @@ export default function WorkspaceSettings() {
       <SettingsTitle title={t("General")} />
       <WorkspaceIcon />
       <WorkspaceNameForm />
+
+      <Divider my="md" />
+      <WorkspaceSearchSettings />
 
       <Divider my="md" />
       <AllowMemberTemplates />

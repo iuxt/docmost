@@ -62,10 +62,17 @@ the SSH command with `pnpm run deploy --dry-run`.
 ### Typesense search
 
 This fork includes an independent Typesense integration for page titles and body
-text. Set `SEARCH_DRIVER=typesense`, `TYPESENSE_URL`, `TYPESENSE_API_KEY`, and
-optionally `TYPESENSE_LOCALE` (`en` by default, `zh` for Chinese). The API key
-stays on the server. Typesense's [collection documentation](https://typesense.org/docs/30.1/api/collections.html)
+text. Configure `TYPESENSE_URL`, `TYPESENSE_API_KEY`, and optionally
+`TYPESENSE_LOCALE` (`en` by default, `zh` for Chinese) on the server. Workspace
+administrators can then enable **Use Typesense search** under **Settings →
+Workspace → General** without restarting the server. The control is disabled
+until the server has Typesense configured. The API key stays on the server.
+Typesense's [collection documentation](https://typesense.org/docs/30.1/api/collections.html)
 describes language-specific tokenization.
+
+`SEARCH_DRIVER` sets the default for workspaces that have not saved a search
+preference (`database` by default). A saved workspace preference overrides it,
+including when Typesense is the server default.
 
 For Docker Compose, put a strong `TYPESENSE_API_KEY` in `.env` and run:
 
@@ -77,17 +84,21 @@ The override uses Chinese tokenization by default, persists the index, and keeps
 Typesense off the host's public ports. Build the updated Docmost image before
 starting it; the upstream image does not include this integration.
 
-Existing pages are indexed in background batches on startup, then reconciled
-hourly. Creates, edits, restores, and deletes are synchronized through the search
-queue. Initial indexing is asynchronous, so results can be incomplete until it
-finishes. Changing the locale builds a new collection; old locale collections
-remain available for manual cleanup.
+While Typesense is configured, pages are indexed in background batches on startup
+and reconciled hourly, even when the server's default search driver is database.
+Creates, edits, restores, and deletes are synchronized through the search queue.
+Enabling Typesense for a workspace also queues a backfill of that workspace's
+existing pages. Initial indexing is asynchronous, so results can be incomplete
+until it finishes. Changing the locale builds a new collection; old locale
+collections remain available for manual cleanup.
 
 Search results are checked against live workspace, space, page, public-space,
 and share permissions in PostgreSQL. Creator, label, and archived-space filters
-also use live database state. Typesense failures fall back to database search;
-set `SEARCH_DRIVER=database` to disable the integration. This implementation
-covers pages; attachment text and AI search are separate features.
+also use live database state. Typesense failures fall back to database search.
+Turn off the workspace setting to use database search for that workspace; remove
+the server's Typesense API key (and use `SEARCH_DRIVER=database`) to stop indexing.
+This implementation covers pages; attachment text and AI search are separate
+features.
 
 ## Features
 

@@ -21,10 +21,13 @@ export class SearchQueueProcessor
   }
 
   async process(job: Job): Promise<void> {
-    if (this.environment.getSearchDriver() !== 'typesense') return;
+    if (!this.environment.isTypesenseConfigured()) return;
     switch (job.name) {
       case QueueJob.SEARCH_INDEX_PAGES:
-        await this.typesense.reindexBatch(job.data.cursor);
+        await this.typesense.reindexBatch(
+          job.data.cursor,
+          job.data.workspaceId,
+        );
         break;
       case QueueJob.PAGE_CREATED:
         await this.typesense.syncPages(job.data.pageIds ?? [], true);

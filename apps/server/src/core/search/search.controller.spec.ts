@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { SearchController } from './search.controller';
+import { ConfigService } from '@nestjs/config';
+import { EnvironmentService } from '../../integrations/environment/environment.service';
 
 // Keep controller tests independent of each service's application dependencies.
 jest.mock('./search.service', () => ({ SearchService: class {} }));
@@ -251,4 +253,58 @@ describe('SearchController share-search gate', () => {
       { workspaceId: 'ws1' },
     );
   });
+});
+
+describe('SearchController workspace driver selection', () => {
+  it.each([
+    ['database', 'typesense'],
+    ['typesense', 'database'],
+  ])(
+    'uses workspace %s instead of server %s for all page search endpoints',
+    async (driver, server) => {
+      const database = {
+        searchPage: jest.fn().mockResolvedValue({ items: [] }),
+      };
+      const typesense = {
+        searchPage: jest.fn().mockResolvedValue({ items: [] }),
+      };
+      const environment = new EnvironmentService(
+        new ConfigService({ SEARCH_DRIVER: server }),
+      );
+      const controller = new SearchController(
+        database as any,
+        {} as any,
+        environment,
+        {
+          getPublicSpace: jest.fn().mockResolvedValue({ space: { id: 's1' } }),
+        } as any,
+        {
+          getSpacePagesExcludingRestricted: jest
+            .fn()
+            .mockResolvedValue([{ id: 'p1' }]),
+        } as any,
+        { isSharingAllowed: jest.fn().mockResolvedValue(true) } as any,
+        { findById: jest.fn().mockResolvedValue({ spaceId: 's1' }) } as any,
+        typesense as any,
+      );
+      const workspace = { id: 'w1', settings: { searchDriver: driver } } as any;
+      await controller.pageSearch(
+        { query: '中文' } as any,
+        { id: 'u1' } as any,
+        workspace,
+      );
+      await controller.searchShare(
+        { query: '中文', shareId: 'share1' } as any,
+        workspace,
+      );
+      await controller.searchPublicSpace(
+        { query: '中文', spaceSlug: 'docs' } as any,
+        workspace,
+      );
+      const selected = driver === 'typesense' ? typesense : database;
+      const other = driver === 'typesense' ? database : typesense;
+      expect(selected.searchPage).toHaveBeenCalledTimes(3);
+      expect(other.searchPage).not.toHaveBeenCalled();
+    },
+  );
 });

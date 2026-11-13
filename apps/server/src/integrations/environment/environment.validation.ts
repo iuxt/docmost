@@ -89,16 +89,25 @@ export class EnvironmentVariables {
         'TYPESENSE_URL must be a valid typesense url e.g http://localhost:8108',
     },
   )
-  @ValidateIf((obj) => obj.SEARCH_DRIVER === 'typesense')
+  @ValidateIf(
+    (obj) =>
+      obj.SEARCH_DRIVER === 'typesense' || Boolean(obj.TYPESENSE_API_KEY),
+  )
   TYPESENSE_URL: string;
 
-  @ValidateIf((obj) => obj.SEARCH_DRIVER === 'typesense')
+  @ValidateIf(
+    (obj) =>
+      obj.SEARCH_DRIVER === 'typesense' || Boolean(obj.TYPESENSE_API_KEY),
+  )
   @IsNotEmpty()
   @IsString()
   TYPESENSE_API_KEY: string;
 
   @IsOptional()
-  @ValidateIf((obj) => obj.SEARCH_DRIVER === 'typesense')
+  @ValidateIf(
+    (obj) =>
+      obj.SEARCH_DRIVER === 'typesense' || Boolean(obj.TYPESENSE_API_KEY),
+  )
   @IsISO6391()
   @IsString()
   TYPESENSE_LOCALE: string;

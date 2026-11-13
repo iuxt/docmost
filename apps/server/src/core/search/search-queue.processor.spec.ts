@@ -3,14 +3,14 @@ import { QueueJob } from '../../integrations/queue/constants';
 
 describe('SearchQueueProcessor', () => {
   const id = '019a1f00-0000-7000-8000-000000000001';
-  function setup(driver = 'typesense') {
+  function setup(configured = true) {
     const typesense = {
       syncPages: jest.fn(),
       removeByFilter: jest.fn(),
       reindexBatch: jest.fn(),
     };
     const processor = new SearchQueueProcessor(
-      { getSearchDriver: () => driver } as any,
+      { isTypesenseConfigured: () => configured } as any,
       typesense as any,
     );
     return { processor, typesense };
@@ -53,13 +53,13 @@ describe('SearchQueueProcessor', () => {
     const { processor, typesense } = setup();
     await processor.process({
       name: QueueJob.SEARCH_INDEX_PAGES,
-      data: { cursor: id },
+      data: { cursor: id, workspaceId: id },
     } as any);
-    expect(typesense.reindexBatch).toHaveBeenCalledWith(id);
+    expect(typesense.reindexBatch).toHaveBeenCalledWith(id, id);
   });
 
-  it('leaves Typesense untouched when the database driver is selected', async () => {
-    const { processor, typesense } = setup('database');
+  it('leaves Typesense untouched when it is not configured', async () => {
+    const { processor, typesense } = setup(false);
     await processor.process({
       name: QueueJob.PAGE_UPDATED,
       data: { pageIds: [id] },

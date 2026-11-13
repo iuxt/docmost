@@ -8,10 +8,15 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { SUPPORTED_LOCALES } from '../workspace.constants';
 
 export class UpdateWorkspaceDto extends PartialType(CreateWorkspaceDto) {
+  @ValidateIf((_obj, value) => value !== undefined)
+  @IsIn(['database', 'typesense'])
+  searchDriver: 'database' | 'typesense';
+
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

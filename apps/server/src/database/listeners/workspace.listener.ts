@@ -23,14 +23,14 @@ export class WorkspaceListener {
   @OnEvent(EventName.WORKSPACE_DELETED)
   async handlePageDeleted(event: WorkspaceEvent) {
     const { workspaceId } = event;
-    if (this.isTypesense()) {
+    if (this.isTypesenseConfigured()) {
       await this.searchQueue.add(QueueJob.WORKSPACE_DELETED, { workspaceId });
     }
 
     await this.aiQueue.add(QueueJob.WORKSPACE_DELETED, { workspaceId });
   }
 
-  isTypesense(): boolean {
-    return this.environmentService.getSearchDriver() === 'typesense';
+  isTypesenseConfigured(): boolean {
+    return this.environmentService.isTypesenseConfigured();
   }
 }

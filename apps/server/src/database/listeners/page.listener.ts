@@ -24,7 +24,7 @@ export class PageListener {
   @OnEvent(EventName.PAGE_CREATED)
   async handlePageCreated(event: PageEvent) {
     const { pageIds, workspaceId } = event;
-    if (this.isTypesense()) {
+    if (this.isTypesenseConfigured()) {
       await this.searchQueue.add(
         QueueJob.PAGE_CREATED,
         { pageIds },
@@ -47,7 +47,7 @@ export class PageListener {
       { pageIds },
       {
         // Updates may be emitted before the surrounding transaction commits.
-        delay: this.isTypesense() ? 1000 : 0,
+        delay: this.isTypesenseConfigured() ? 1000 : 0,
       },
     );
   }
@@ -55,7 +55,7 @@ export class PageListener {
   @OnEvent(EventName.PAGE_DELETED)
   async handlePageDeleted(event: PageEvent) {
     const { pageIds, workspaceId } = event;
-    if (this.isTypesense()) {
+    if (this.isTypesenseConfigured()) {
       await this.searchQueue.add(QueueJob.PAGE_DELETED, { pageIds });
     }
 
@@ -66,7 +66,7 @@ export class PageListener {
   async handlePageSoftDeleted(event: PageEvent) {
     const { pageIds, workspaceId } = event;
 
-    if (this.isTypesense()) {
+    if (this.isTypesenseConfigured()) {
       await this.searchQueue.add(QueueJob.PAGE_SOFT_DELETED, { pageIds });
     }
 
@@ -79,14 +79,14 @@ export class PageListener {
   @OnEvent(EventName.PAGE_RESTORED)
   async handlePageRestored(event: PageEvent) {
     const { pageIds, workspaceId } = event;
-    if (this.isTypesense()) {
+    if (this.isTypesenseConfigured()) {
       await this.searchQueue.add(QueueJob.PAGE_RESTORED, { pageIds });
     }
 
     await this.aiQueue.add(QueueJob.PAGE_RESTORED, { pageIds, workspaceId });
   }
 
-  isTypesense(): boolean {
-    return this.environmentService.getSearchDriver() === 'typesense';
+  isTypesenseConfigured(): boolean {
+    return this.environmentService.isTypesenseConfigured();
   }
 }

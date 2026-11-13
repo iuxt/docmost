@@ -345,4 +345,20 @@ export class WorkspaceRepo {
       .executeTakeFirst();
   }
 
+  async updateSearchDriver(
+    workspaceId: string,
+    driver: 'database' | 'typesense',
+    trx?: KyselyTransaction,
+  ) {
+    return dbOrTx(this.db, trx)
+      .updateTable('workspaces')
+      .set({
+        settings: sql`COALESCE(settings, '{}'::jsonb)
+                || jsonb_build_object('searchDriver', ${driver}::text)`,
+        updatedAt: new Date(),
+      })
+      .where('id', '=', workspaceId)
+      .execute();
+  }
+
 }

@@ -88,6 +88,7 @@ export class WorkspaceService {
     private integrationConnectionRepo: IntegrationConnectionRepo,
     private wsService: WsService,
     private readonly collabAccessService: CollabAccessService,
+    @InjectQueue(QueueName.SEARCH_QUEUE) private readonly searchQueue: Queue,
   ) {}
 
   async findById(workspaceId: string) {
@@ -100,7 +101,11 @@ export class WorkspaceService {
       throw new NotFoundException('Workspace not found');
     }
 
-    return workspace;
+    return {
+      ...workspace,
+      searchDriver: this.environmentService.getSearchDriver(workspace),
+      typesenseConfigured: this.environmentService.isTypesenseConfigured(),
+    };
   }
 
   async getWorkspacePublicData(workspaceId: string) {
@@ -324,6 +329,14 @@ export class WorkspaceService {
   }
 
   async update(workspaceId: string, updateWorkspaceDto: UpdateWorkspaceDto) {
+    if (
+      updateWorkspaceDto.searchDriver === 'typesense' &&
+      !this.environmentService.isTypesenseConfigured()
+    ) {
+      throw new BadRequestException(
+        'Typesense is not configured on this server. Contact your administrator.',
+      );
+    }
     if (updateWorkspaceDto.enforceSso) {
       const sso = await this.db
         .selectFrom('authProviders')
@@ -487,6 +500,19 @@ export class WorkspaceService {
     >;
 
     await executeTx(this.db, async (trx) => {
+      if (typeof updateWorkspaceDto.searchDriver !== 'undefined') {
+        const prev = this.environmentService.getSearchDriver(workspaceBefore);
+        if (prev !== updateWorkspaceDto.searchDriver) {
+          before.searchDriver = prev;
+          after.searchDriver = updateWorkspaceDto.searchDriver;
+        }
+        await this.workspaceRepo.updateSearchDriver(
+          workspaceId,
+          updateWorkspaceDto.searchDriver,
+          trx,
+        );
+      }
+
       if (typeof updateWorkspaceDto.restrictApiToAdmins !== 'undefined') {
         const prev = settingsBefore?.api?.restrictToAdmins ?? false;
         if (prev !== updateWorkspaceDto.restrictApiToAdmins) {
@@ -724,6 +750,7 @@ export class WorkspaceService {
       delete updateWorkspaceDto.allowPersonalSpaces;
       delete updateWorkspaceDto.defaultPageEditMode;
       delete updateWorkspaceDto.defaultLocale;
+      delete updateWorkspaceDto.searchDriver;
       delete updateWorkspaceDto.aiChatReadOnly;
       delete updateWorkspaceDto.aiChatWorkspaceKnowledgeOnly;
       delete updateWorkspaceDto.enforceMcpOauth;
@@ -734,6 +761,19 @@ export class WorkspaceService {
         trx,
       );
     });
+
+    if (after.searchDriver === 'typesense') {
+      await this.searchQueue.add(
+        QueueJob.SEARCH_INDEX_PAGES,
+        { workspaceId },
+        {
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 20000 },
+          removeOnComplete: true,
+          removeOnFail: true,
+        },
+      );
+    }
 
     if (after.aiSearch === true) {
       await this.aiQueue.add(QueueJob.WORKSPACE_CREATE_EMBEDDINGS, {
@@ -786,7 +826,11 @@ export class WorkspaceService {
     }
 
     const { licenseKey, ...rest } = workspace;
-    return rest;
+    return {
+      ...rest,
+      searchDriver: this.environmentService.getSearchDriver(workspace),
+      typesenseConfigured: this.environmentService.isTypesenseConfigured(),
+    };
   }
 
   async getWorkspaceUsers(

@@ -37,7 +37,7 @@ export class TypesenseService implements OnApplicationBootstrap {
   }
 
   async onApplicationBootstrap() {
-    if (this.environment.getSearchDriver() !== 'typesense') return;
+    if (!this.environment.isTypesenseConfigured()) return;
 
     const opts = {
       attempts: 5,
@@ -243,10 +243,13 @@ export class TypesenseService implements OnApplicationBootstrap {
     );
   }
 
-  async reindexBatch(cursor?: string) {
+  async reindexBatch(cursor?: string, workspaceId?: string) {
     const pages = await this.db
       .selectFrom('pages')
       .select('id')
+      .$if(Boolean(workspaceId), (qb) =>
+        qb.where('workspaceId', '=', workspaceId),
+      )
       .$if(Boolean(cursor), (qb) => qb.where('id', '>', cursor))
       .orderBy('id')
       .limit(INDEX_BATCH_SIZE)
@@ -256,9 +259,9 @@ export class TypesenseService implements OnApplicationBootstrap {
       const nextCursor = pages[pages.length - 1].id;
       await this.queue.add(
         QueueJob.SEARCH_INDEX_PAGES,
-        { cursor: nextCursor },
+        { cursor: nextCursor, ...(workspaceId ? { workspaceId } : {}) },
         {
-          jobId: `typesense-reindex-${nextCursor}`,
+          jobId: `typesense-reindex-${workspaceId ?? 'all'}-${nextCursor}`,
           attempts: 5,
           backoff: { type: 'exponential', delay: 20000 },
           removeOnComplete: true,

@@ -24,14 +24,14 @@ export class SpaceListener {
   @OnEvent(EventName.SPACE_DELETED)
   async handleSpaceDeleted(event: SpaceEvent) {
     const { spaceId, workspaceId } = event;
-    if (this.isTypesense()) {
+    if (this.isTypesenseConfigured()) {
       await this.searchQueue.add(QueueJob.SPACE_DELETED, { spaceId });
     }
 
     await this.aiQueue.add(QueueJob.SPACE_DELETED, { spaceId, workspaceId });
   }
 
-  isTypesense(): boolean {
-    return this.environmentService.getSearchDriver() === 'typesense';
+  isTypesenseConfigured(): boolean {
+    return this.environmentService.isTypesenseConfigured();
   }
 }

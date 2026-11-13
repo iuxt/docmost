@@ -1813,5 +1813,9 @@
   "These already show from {{from}} with no end:": "These already show from {{from}} with no end:",
   "Save and replace": "Save and replace",
   "“{{title}}” will be archived when this one starts.": "“{{title}}” will be archived when this one starts.",
-  "This one will be archived when “{{title}}” starts.": "This one will be archived when “{{title}}” starts."
+  "This one will be archived when “{{title}}” starts.": "This one will be archived when “{{title}}” starts.",
+  "Use Typesense search": "Use Typesense search",
+  "Search page titles and content with Typesense in this workspace. Turn off to use database search.": "Search page titles and content with Typesense in this workspace. Turn off to use database search.",
+  "Existing pages are indexed in the background. Search results may be incomplete until indexing finishes.": "Existing pages are indexed in the background. Search results may be incomplete until indexing finishes.",
+  "Typesense is not configured on this server. Contact your administrator.": "Typesense is not configured on this server. Contact your administrator."
 }

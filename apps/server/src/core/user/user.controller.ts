@@ -14,6 +14,7 @@ import { OAuthScope } from '../../common/decorators/oauth-scope.decorator';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { User, Workspace } from '@docmost/db/types/entity.types';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
+import { EnvironmentService } from '../../integrations/environment/environment.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('users')
@@ -21,6 +22,7 @@ export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly workspaceRepo: WorkspaceRepo,
+    private readonly environmentService: EnvironmentService,
   ) {}
 
   @HttpCode(HttpStatus.OK)
@@ -39,6 +41,8 @@ export class UserController {
     const workspaceInfo = {
       ...rest,
       memberCount,
+      searchDriver: this.environmentService.getSearchDriver(workspace),
+      typesenseConfigured: this.environmentService.isTypesenseConfigured(),
     };
 
     return { user: authUser, workspace: workspaceInfo };

@@ -37,9 +37,12 @@ export interface IWorkspace {
   defaultPageEditMode?: string;
   defaultLocale?: string;
   isScimEnabled?: boolean;
+  searchDriver?: "database" | "typesense";
+  typesenseConfigured?: boolean;
 }
 
 export interface IWorkspaceSettings {
+  searchDriver?: "database" | "typesense";
   ai?: IWorkspaceAiSettings;
   sharing?: IWorkspaceSharingSettings;
   api?: IWorkspaceApiSettings;

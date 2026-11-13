@@ -69,7 +69,7 @@ export class SearchController {
       }
     }
 
-    if (this.environmentService.getSearchDriver() === 'typesense') {
+    if (this.environmentService.getSearchDriver(workspace) === 'typesense') {
       return this.searchTypesense(searchDto, {
         userId: user.id,
         workspaceId: workspace.id,
@@ -113,7 +113,7 @@ export class SearchController {
       throw new NotFoundException('Share not found');
     }
 
-    if (this.environmentService.getSearchDriver() === 'typesense') {
+    if (this.environmentService.getSearchDriver(workspace) === 'typesense') {
       return this.searchTypesense(searchDto, {
         workspaceId: workspace.id,
       });
@@ -147,7 +147,7 @@ export class SearchController {
     );
     const publicPageIds = pages.map((page) => page.id);
 
-    if (this.environmentService.getSearchDriver() === 'typesense') {
+    if (this.environmentService.getSearchDriver(workspace) === 'typesense') {
       return this.searchTypesense(searchDto, {
         workspaceId: workspace.id,
         publicPageIds,

@@ -267,10 +267,21 @@ export class EnvironmentService {
     return this.configService.get<string>('POSTHOG_KEY');
   }
 
-  getSearchDriver(): string {
+  getSearchDriver(workspace?: { settings?: unknown }): string {
+    const settings = workspace?.settings as { searchDriver?: unknown } | null;
+    if (
+      settings?.searchDriver === 'database' ||
+      settings?.searchDriver === 'typesense'
+    ) {
+      return settings.searchDriver;
+    }
     return this.configService
       .get<string>('SEARCH_DRIVER', 'database')
       .toLowerCase();
+  }
+
+  isTypesenseConfigured(): boolean {
+    return Boolean(this.getTypesenseUrl() && this.getTypesenseApiKey()?.trim());
   }
 
   getTypesenseUrl(): string {

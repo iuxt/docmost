@@ -20,7 +20,7 @@ function setup(rows: any[] = []) {
   const db = { selectFrom: jest.fn().mockReturnValue(qb) };
   const queue = { add: jest.fn(), upsertJobScheduler: jest.fn() };
   const environment = {
-    getSearchDriver: jest.fn().mockReturnValue('typesense'),
+    isTypesenseConfigured: jest.fn().mockReturnValue(true),
     getTypesenseUrl: () => 'http://localhost:8108/CaseSensitive/',
     getTypesenseApiKey: () => 'server-secret',
     getTypesenseLocale: () => 'zh',
@@ -135,12 +135,12 @@ describe('TypesenseService', () => {
     expect(url.searchParams.get('include_fields')).toBe('id');
   });
 
-  it('queues startup backfill and hourly reconciliation only for Typesense', async () => {
+  it('queues startup backfill and hourly reconciliation whenever Typesense is configured', async () => {
     const { service, queue, environment } = setup();
-    environment.getSearchDriver.mockReturnValue('database');
+    environment.isTypesenseConfigured.mockReturnValue(false);
     await service.onApplicationBootstrap();
     expect(queue.add).not.toHaveBeenCalled();
-    environment.getSearchDriver.mockReturnValue('typesense');
+    environment.isTypesenseConfigured.mockReturnValue(true);
     await service.onApplicationBootstrap();
     expect(queue.add).toHaveBeenCalledWith(
       QueueJob.SEARCH_INDEX_PAGES,
@@ -151,6 +151,32 @@ describe('TypesenseService', () => {
       'typesense-reconcile',
       { every: 3600000 },
       expect.any(Object),
+    );
+  });
+
+  it('keeps workspace-scoped backfill jobs scoped across batches', async () => {
+    const rows = Array.from({ length: 250 }, () => ({ id: livePage.id }));
+    const { service, qb, queue } = setup(rows);
+    qb.$if.mockImplementation((condition, callback) => {
+      if (condition) callback(qb);
+      return qb;
+    });
+    jest.spyOn(service, 'syncPages').mockResolvedValue();
+
+    await service.reindexBatch(deletedId, livePage.workspaceId);
+
+    expect(qb.where).toHaveBeenCalledWith(
+      'workspaceId',
+      '=',
+      livePage.workspaceId,
+    );
+    expect(qb.where).toHaveBeenCalledWith('id', '>', deletedId);
+    expect(queue.add).toHaveBeenCalledWith(
+      QueueJob.SEARCH_INDEX_PAGES,
+      { cursor: livePage.id, workspaceId: livePage.workspaceId },
+      expect.objectContaining({
+        jobId: `typesense-reindex-${livePage.workspaceId}-${livePage.id}`,
+      }),
     );
   });
 });
