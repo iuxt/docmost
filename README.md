@@ -28,15 +28,34 @@ Set the image registry/namespace and deployment destination in the root
 ```
 
 ```sh
-pnpm run bump-version # Increment patch; use bump-minor or bump-major for other releases
-pnpm run docker-build
-pnpm run docker-push
-pnpm run deploy
+npm run docker-push # Automatically increment the patch version, build, and push
+npm run deploy
 ```
 
-Version bumps update the root, client, and server `package.json` files without
-creating a Git commit or tag. Image commands use the root package version by
-default; set `ITIER_VERSION` to override the image tag. `config.image_prefix` is
+`docker-push` automatically increments the patch version (for example,
+`0.97.0` → `0.97.1`) in the root, client, and server `package.json` files before
+building, and uses the new version as the image tag. Failed builds or pushes
+restore the original package files. Successful pushes keep the new version for
+the next release and for `npm run deploy`. No Git commit or tag is created;
+commit the updated package files to preserve the version across checkouts.
+
+Versions follow `x.y.z` (major, minor, patch). Choose which part to increment,
+or specify the complete release version:
+
+```sh
+npm run docker-push -- --bump patch # 1.2.3 -> 1.2.4 (default)
+npm run docker-push -- --bump minor # 1.2.3 -> 1.3.0
+npm run docker-push -- --bump major # 1.2.3 -> 2.0.0
+npm run docker-push -- --version 1.2.3 # Set all three package versions and publish 1.2.3
+```
+
+`--bump` and `--version` cannot be combined with each other or `ITIER_VERSION`.
+Version components must be nonnegative integers without leading zeros.
+
+`npm run docker-build` builds the current version without incrementing it.
+The manual `bump-version`, `bump-minor`, and `bump-major` commands remain available.
+Set `ITIER_VERSION` to override the image tag and skip the automatic increment
+(for example, when republishing an existing version). `config.image_prefix` is
 the registry/namespace before `/docmost` and defaults to `docmost`.
 `IMAGE_PREFIX`, `DEPLOY_HOST`, and `DEPLOY_DIR` environment variables override
 the corresponding `package.json` settings when provided. Set `config.deploy_host`
@@ -48,6 +67,21 @@ native workers or emulation). `docker-build` loads the images locally and requir
 the containerd image store; the classic Docker image store cannot load a
 multi-platform image. `docker-push` publishes the multi-platform image to the
 registry after you have logged in with `docker login`.
+
+Both Dockerfiles compile the JavaScript and frontend assets once on the builder's
+native architecture, while installing native runtime dependencies separately for
+each target architecture. Dependency layers ignore release version changes;
+the original package versions are restored before compilation and in the final
+image. BuildKit caches the pnpm store between builds, and the runtime image keeps
+dependencies in a separate layer from the compiled app. Keep the same builder and
+its cache for faster subsequent releases; the first build still downloads dependencies.
+
+If all deployment servers use one architecture, build and push only that platform:
+
+```sh
+npm run docker-push -- --set docmost.platform=linux/amd64
+# For ARM servers, use docmost.platform=linux/arm64 instead.
+```
 
 For registry compatibility (including Alibaba ACR), build attestations
 (provenance and SBOM) are disabled, and `docker-push` exports Docker media types

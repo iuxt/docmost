@@ -1,7 +1,9 @@
 const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
 const path = require('node:path');
 const { config, version } = require('../package.json');
 
+const root = path.resolve(__dirname, '..');
 const env = {
   ...process.env,
   IMAGE_PREFIX: process.env.IMAGE_PREFIX || config.image_prefix,
@@ -31,9 +33,55 @@ if (!Object.hasOwn(commands, action)) {
   process.exit(1);
 }
 
+const commandArgs = [];
+let versionArgs;
+const options = process.argv.slice(3);
+for (let i = 0; i < options.length; i += 1) {
+  const [option, ...inlineValue] = options[i].split('=');
+  if (action !== 'docker-push' || !['--bump', '--version'].includes(option)) {
+    commandArgs.push(options[i]);
+    continue;
+  }
+  const value = inlineValue.length ? inlineValue.join('=') : options[++i];
+  if (!value || versionArgs || process.env.ITIER_VERSION) {
+    console.error('Specify one of --bump patch|minor|major, --version x.y.z, or ITIER_VERSION.');
+    process.exit(1);
+  }
+  versionArgs = [option === '--version' ? '--set' : '--bump', value];
+}
+
+// Bump before building so the image tag and the embedded app versions agree.
+// Keep explicit tag overrides available for republishing an existing version.
+let originalPackages;
+if (action === 'docker-push' && !process.env.ITIER_VERSION) {
+  originalPackages = ['package.json', 'apps/client/package.json', 'apps/server/package.json']
+    .map((file) => {
+      const filename = path.join(root, file);
+      return { filename, contents: fs.readFileSync(filename) };
+    });
+  process.on('exit', (code) => {
+    if (code !== 0) {
+      for (const { filename, contents } of originalPackages) {
+        fs.writeFileSync(filename, contents);
+      }
+      console.error(`Release failed; restored package versions to ${version}.`);
+    }
+  });
+
+  const bump = spawnSync('bash', ['scripts/build-version.sh', ...(versionArgs || ['--bump', 'patch'])], {
+    cwd: root,
+    encoding: 'utf8',
+    stdio: ['inherit', 'pipe', 'inherit'],
+  });
+  if (bump.error) console.error(bump.error.message);
+  if (bump.status !== 0) process.exit(bump.status ?? 1);
+  env.ITIER_VERSION = bump.stdout.trim();
+  console.log(`Release version: ${version} -> ${env.ITIER_VERSION}`);
+}
+
 const [command, args] = commands[action];
-const result = spawnSync(command, [...args, ...process.argv.slice(3)], {
-  cwd: path.resolve(__dirname, '..'),
+const result = spawnSync(command, [...args, ...commandArgs], {
+  cwd: root,
   env,
   stdio: 'inherit',
 });
