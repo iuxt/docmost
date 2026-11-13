@@ -19,23 +19,17 @@ function setup(rows: any[] = []) {
   qb.execute = jest.fn().mockResolvedValue(rows);
   const db = { selectFrom: jest.fn().mockReturnValue(qb) };
   const queue = { add: jest.fn(), upsertJobScheduler: jest.fn() };
-  const environment = {
-    isTypesenseConfigured: jest.fn().mockReturnValue(true),
-    getTypesenseUrl: () => 'http://localhost:8108/CaseSensitive/',
-    getTypesenseApiKey: () => 'server-secret',
-    getTypesenseLocale: () => 'zh',
-  };
   const service = new TypesenseClient(
     {
-      url: environment.getTypesenseUrl(),
-      apiKey: environment.getTypesenseApiKey(),
-      locale: environment.getTypesenseLocale(),
+      url: 'http://localhost:8108/CaseSensitive/',
+      apiKey: 'workspace-secret',
+      locale: 'zh',
     },
     db as any,
     queue as any,
     livePage.workspaceId,
   );
-  return { service, qb, queue, environment };
+  return { service, qb, queue };
 }
 
 describe('TypesenseService', () => {
@@ -98,7 +92,7 @@ describe('TypesenseService', () => {
       workspaceId: livePage.workspaceId,
       spaceId: livePage.spaceId,
     });
-    expect(upsert[1].headers['X-TYPESENSE-API-KEY']).toBe('server-secret');
+    expect(upsert[1].headers['X-TYPESENSE-API-KEY']).toBe('workspace-secret');
   });
 
   it('retries partial import failures even when HTTP status is 200', async () => {

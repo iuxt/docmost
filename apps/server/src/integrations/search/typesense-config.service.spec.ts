@@ -43,7 +43,6 @@ function setup(legacy: Record<string, string> = {}) {
   const service = new TypesenseConfigService(
     db as any,
     encryption,
-    environment,
     queue as any,
   );
   return { service, rows, encryption, queue, db };
@@ -157,15 +156,19 @@ describe('Typesense connection settings', () => {
     expect(rows.size).toBe(0);
   });
 
-  it('prefers saved settings over legacy environment values', async () => {
+  it('ignores legacy environment values and requires saved workspace settings', async () => {
     const { service } = setup({
       TYPESENSE_URL: 'http://legacy:8108',
       TYPESENSE_API_KEY: 'legacy-key',
       TYPESENSE_LOCALE: 'en',
     });
-    expect((await service.get('workspace-1'))?.apiKey).toBe('legacy-key');
+    expect(await service.get('workspace-1')).toBeUndefined();
+    expect(await service.isConfigured('workspace-1')).toBe(false);
+    await expect(
+      service.save('workspace-1', { url: dto.url, locale: dto.locale }),
+    ).rejects.toThrow('API key is required');
     await service.save('workspace-1', dto);
     expect((await service.get('workspace-1'))?.apiKey).toBe(dto.apiKey);
-    expect((await service.get('workspace-2'))?.apiKey).toBe('legacy-key');
+    expect(await service.get('workspace-2')).toBeUndefined();
   });
 });

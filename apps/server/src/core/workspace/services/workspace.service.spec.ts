@@ -8,7 +8,11 @@ const workspaceId = 'workspace-1';
 const userId = 'user-1';
 const authUser = { id: 'admin-1', role: UserRole.ADMIN } as any;
 
-function buildService(config: Record<string, string> = {}, settings = {}) {
+function buildService(
+  config: Record<string, string> = {},
+  settings = {},
+  typesenseConfigured = false,
+) {
   const trx = {
     deleteFrom: jest.fn(() => ({
       where: jest.fn(() => ({ execute: jest.fn() })),
@@ -71,7 +75,7 @@ function buildService(config: Record<string, string> = {}, settings = {}) {
     { recheckAccess: jest.fn() } as any,
     searchQueue as any,
     {
-      isConfigured: jest.fn(async () => environment.isTypesenseConfigured()),
+      isConfigured: jest.fn().mockResolvedValue(typesenseConfigured),
     } as any,
   );
 
@@ -110,10 +114,7 @@ describe('WorkspaceService user offboarding', () => {
 describe('WorkspaceService search settings', () => {
   it('persists the workspace driver and queues scoped indexing after commit', async () => {
     const { service, workspaceRepo, searchQueue, trx, auditService } =
-      buildService(
-        { TYPESENSE_API_KEY: 'server-key' },
-        { defaultLocale: 'zh-CN' },
-      );
+      buildService({}, { defaultLocale: 'zh-CN' }, true);
     const result = await service.update(workspaceId, {
       searchDriver: 'typesense',
     } as any);
@@ -148,7 +149,7 @@ describe('WorkspaceService search settings', () => {
     );
   });
 
-  it('rejects enabling Typesense without server configuration before changing settings', async () => {
+  it('rejects enabling Typesense without saved workspace configuration before changing settings', async () => {
     const { service, workspaceRepo, searchQueue } = buildService();
     await expect(
       service.update(workspaceId, { searchDriver: 'typesense' } as any),
@@ -157,7 +158,7 @@ describe('WorkspaceService search settings', () => {
     expect(searchQueue.add).not.toHaveBeenCalled();
   });
 
-  it('allows disabling Typesense after server configuration has been removed', async () => {
+  it('allows disabling Typesense after workspace configuration has been removed', async () => {
     const { service, searchQueue } = buildService(
       {},
       { searchDriver: 'typesense' },
@@ -172,18 +173,27 @@ describe('WorkspaceService search settings', () => {
 
   it('does not enqueue another backfill when saving the same driver', async () => {
     const { service, searchQueue } = buildService(
-      { TYPESENSE_API_KEY: 'key' },
+      {},
       { searchDriver: 'typesense' },
+      true,
     );
     await service.update(workspaceId, { searchDriver: 'typesense' } as any);
     expect(searchQueue.add).not.toHaveBeenCalled();
   });
 
-  it('returns the inherited driver and availability in workspace info', async () => {
+  it('ignores legacy environment configuration in workspace info', async () => {
     const { service } = buildService({
       SEARCH_DRIVER: 'typesense',
       TYPESENSE_API_KEY: 'key',
     });
+    expect(await service.getWorkspaceInfo(workspaceId)).toMatchObject({
+      searchDriver: 'database',
+      typesenseConfigured: false,
+    });
+  });
+
+  it('returns the saved workspace driver and connection availability', async () => {
+    const { service } = buildService({}, { searchDriver: 'typesense' }, true);
     expect(await service.getWorkspaceInfo(workspaceId)).toMatchObject({
       searchDriver: 'typesense',
       typesenseConfigured: true,

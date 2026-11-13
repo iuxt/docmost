@@ -9,7 +9,7 @@ services:
   typesense:
     image: typesense/typesense:30.1
     # Enter this same key in Settings → Workspace → General after startup.
-    command: ["--data-dir=/data", "--api-key=REPLACE_WITH_LONG_RANDOM_KEY"]
+    command: ["--data-dir=/data", "--api-key=817f217a-4b57-4535-bfd3-45947517f02d"]
     restart: unless-stopped
     volumes:
       - typesense_data:/data

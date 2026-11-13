@@ -52,7 +52,6 @@ describeIntegration('Typesense settings database integration', () => {
     config = new TypesenseConfigService(
       db,
       new EncryptionService(environment),
-      environment,
       queue as any,
     );
     service = new TypesenseService(config, db, queue as any);

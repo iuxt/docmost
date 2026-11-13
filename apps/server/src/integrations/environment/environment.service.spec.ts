@@ -11,51 +11,31 @@ describe('EnvironmentService search configuration', () => {
   });
 
   it.each(['database', 'typesense'])(
-    'uses the server default %s for workspaces without a setting',
+    'ignores the legacy server default %s for workspaces without a setting',
     (driver) => {
       const service = setup({ SEARCH_DRIVER: driver });
-      expect(service.getSearchDriver()).toBe(driver);
-      expect(service.getSearchDriver({ settings: null })).toBe(driver);
-      expect(service.getSearchDriver({ settings: {} })).toBe(driver);
+      expect(service.getSearchDriver()).toBe('database');
+      expect(service.getSearchDriver({ settings: null })).toBe('database');
+      expect(service.getSearchDriver({ settings: {} })).toBe('database');
     },
   );
 
-  it.each([
-    ['database', 'typesense'],
-    ['typesense', 'database'],
-  ])(
-    'lets workspace %s override server %s without affecting other workspaces',
-    (driver, server) => {
-      const service = setup({ SEARCH_DRIVER: server });
+  it.each(['database', 'typesense'])(
+    'uses the workspace setting %s without affecting other workspaces',
+    (driver) => {
+      const service = setup({ SEARCH_DRIVER: 'typesense' });
       expect(
         service.getSearchDriver({ settings: { searchDriver: driver } }),
       ).toBe(driver);
-      expect(service.getSearchDriver({ settings: {} })).toBe(server);
+      expect(service.getSearchDriver({ settings: {} })).toBe('database');
     },
   );
 
   it('ignores invalid persisted settings', () => {
     expect(
-      setup().getSearchDriver({ settings: { searchDriver: 'invalid' } }),
+      setup({ SEARCH_DRIVER: 'typesense' }).getSearchDriver({
+        settings: { searchDriver: 'invalid' },
+      }),
     ).toBe('database');
   });
-
-  it('allows workspace Typesense search when the global default is database', () => {
-    const service = setup({
-      SEARCH_DRIVER: 'database',
-      TYPESENSE_API_KEY: 'test-key',
-    });
-    expect(service.isTypesenseConfigured()).toBe(true);
-    expect(service.getSearchDriver()).toBe('database');
-  });
-
-  it.each([undefined, '', '   '])(
-    'does not enable Typesense without a usable key (%s)',
-    (key) => {
-      const service = setup(
-        key === undefined ? {} : { TYPESENSE_API_KEY: key },
-      );
-      expect(service.isTypesenseConfigured()).toBe(false);
-    },
-  );
 });

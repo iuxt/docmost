@@ -275,27 +275,7 @@ export class EnvironmentService {
     ) {
       return settings.searchDriver;
     }
-    return this.configService
-      .get<string>('SEARCH_DRIVER', 'database')
-      .toLowerCase();
-  }
-
-  isTypesenseConfigured(): boolean {
-    return Boolean(this.getTypesenseUrl() && this.getTypesenseApiKey()?.trim());
-  }
-
-  getTypesenseUrl(): string {
-    return this.configService.get<string>('TYPESENSE_URL', 'http://localhost:8108');
-  }
-
-  getTypesenseApiKey(): string {
-    return this.configService.get<string>('TYPESENSE_API_KEY');
-  }
-
-  getTypesenseLocale(): string {
-    return this.configService
-      .get<string>('TYPESENSE_LOCALE', 'en')
-      .toLowerCase();
+    return 'database';
   }
 
   getAiDriver(): string {

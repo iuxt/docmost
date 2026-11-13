@@ -11,7 +11,6 @@ import {
   validateSync,
 } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
-import { IsISO6391 } from '../../common/validators/is-iso6391';
 
 export class EnvironmentVariables {
   @IsNotEmpty()
@@ -71,46 +70,6 @@ export class EnvironmentVariables {
   )
   @ValidateIf((obj) => obj.CLOUD === 'true'.toLowerCase())
   SUBDOMAIN_HOST: string;
-
-  @IsOptional()
-  @IsIn(['database', 'typesense'])
-  @IsString()
-  SEARCH_DRIVER: string;
-
-  @IsOptional()
-  @IsUrl(
-    {
-      protocols: ['http', 'https'],
-      require_tld: false,
-      allow_underscores: true,
-    },
-    {
-      message:
-        'TYPESENSE_URL must be a valid typesense url e.g http://localhost:8108',
-    },
-  )
-  @ValidateIf(
-    (obj) =>
-      obj.SEARCH_DRIVER === 'typesense' || Boolean(obj.TYPESENSE_API_KEY),
-  )
-  TYPESENSE_URL: string;
-
-  @ValidateIf(
-    (obj) =>
-      obj.SEARCH_DRIVER === 'typesense' || Boolean(obj.TYPESENSE_API_KEY),
-  )
-  @IsNotEmpty()
-  @IsString()
-  TYPESENSE_API_KEY: string;
-
-  @IsOptional()
-  @ValidateIf(
-    (obj) =>
-      obj.SEARCH_DRIVER === 'typesense' || Boolean(obj.TYPESENSE_API_KEY),
-  )
-  @IsISO6391()
-  @IsString()
-  TYPESENSE_LOCALE: string;
 
   @IsOptional()
   @ValidateIf((obj) => obj.AI_DRIVER)

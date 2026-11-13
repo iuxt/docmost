@@ -3,7 +3,6 @@ import { InjectKysely } from 'nestjs-kysely';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
-import { EnvironmentService } from '../environment/environment.service';
 import {
   EncryptionPurpose,
   EncryptionService,
@@ -22,7 +21,6 @@ export class TypesenseConfigService {
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
     private readonly encryption: EncryptionService,
-    private readonly environment: EnvironmentService,
     @InjectQueue(QueueName.SEARCH_QUEUE) private readonly queue: Queue,
   ) {}
 
@@ -41,14 +39,6 @@ export class TypesenseConfigService {
           row.apiKey,
           EncryptionPurpose.SEARCH_CREDENTIALS,
         ),
-      };
-    }
-    // Keep existing installations working. Settings saved in the UI take priority.
-    if (this.environment.isTypesenseConfigured()) {
-      return {
-        url: this.environment.getTypesenseUrl(),
-        apiKey: this.environment.getTypesenseApiKey(),
-        locale: this.environment.getTypesenseLocale(),
       };
     }
   }

@@ -256,12 +256,9 @@ describe('SearchController share-search gate', () => {
 });
 
 describe('SearchController workspace driver selection', () => {
-  it.each([
-    ['database', 'typesense'],
-    ['typesense', 'database'],
-  ])(
-    'uses workspace %s instead of server %s for all page search endpoints',
-    async (driver, server) => {
+  it.each(['database', 'typesense', undefined])(
+    'uses workspace setting %s and ignores the legacy server default for all page search endpoints',
+    async (driver) => {
       const database = {
         searchPage: jest.fn().mockResolvedValue({ items: [] }),
       };
@@ -269,7 +266,7 @@ describe('SearchController workspace driver selection', () => {
         searchPage: jest.fn().mockResolvedValue({ items: [] }),
       };
       const environment = new EnvironmentService(
-        new ConfigService({ SEARCH_DRIVER: server }),
+        new ConfigService({ SEARCH_DRIVER: 'typesense' }),
       );
       const controller = new SearchController(
         database as any,
