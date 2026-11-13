@@ -53,7 +53,7 @@ npm run docker-push -- --version 1.2.3 # Set all three package versions and publ
 Version components must be nonnegative integers without leading zeros.
 
 `npm run docker-build` builds the current version without incrementing it.
-The manual `bump-version`, `bump-minor`, and `bump-major` commands remain available.
+The manual `bump-patch`, `bump-minor`, and `bump-major` commands remain available.
 Set `VERSION` to override the image tag and skip the automatic increment
 (for example, when republishing an existing version). `config.image_prefix` is
 the registry/namespace before `/docmost` and defaults to `docmost`.

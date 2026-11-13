@@ -1,7 +1,7 @@
 {
   "name": "docmost",
   "homepage": "https://docmost.com",
-  "version": "0.97.4",
+  "version": "1.0.0",
   "private": true,
   "config": {
     "image_prefix": "registry.cn-hangzhou.aliyuncs.com/iuxt",
@@ -9,7 +9,7 @@
     "deploy_dir": "/root/nebula/docmost"
   },
   "scripts": {
-    "bump-version": "bash scripts/build-version.sh --bump patch",
+    "bump-patch": "bash scripts/build-version.sh --bump patch",
     "bump-minor": "bash scripts/build-version.sh --bump minor",
     "bump-major": "bash scripts/build-version.sh --bump major",
     "docker-build": "node scripts/release.cjs docker-build",
