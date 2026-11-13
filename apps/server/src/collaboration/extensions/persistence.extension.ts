@@ -140,6 +140,16 @@ export class PersistenceExtension implements Extension {
           return;
         }
 
+        // Keep legitimate buffered edits made before deletion; refuse changes
+        // received after deletion, including an in-flight collaboration write.
+        if (
+          page.deletedAt &&
+          (!lastChangeAt || lastChangeAt > new Date(page.deletedAt).getTime())
+        ) {
+          page = null;
+          return;
+        }
+
         if (isDeepStrictEqual(tiptapJson, page.content)) {
           page = null;
           return;

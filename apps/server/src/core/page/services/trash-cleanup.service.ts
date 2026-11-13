@@ -5,6 +5,8 @@ import { KyselyDB } from '@docmost/db/types/kysely.types';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { QueueJob, QueueName } from '../../../integrations/queue/constants';
+import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { executeTx } from '@docmost/db/utils';
 
 const DEFAULT_RETENTION_DAYS = 30;
 
@@ -15,6 +17,7 @@ export class TrashCleanupService {
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
     @InjectQueue(QueueName.ATTACHMENT_QUEUE) private attachmentQueue: Queue,
+    private readonly pageRepo: PageRepo,
   ) {}
 
   @Interval('trash-cleanup', 24 * 60 * 60 * 1000) // every 24 hours
@@ -46,8 +49,9 @@ export class TrashCleanupService {
 
         for (const page of oldDeletedPages) {
           try {
-            await this.cleanupPage(page.id);
-            totalCleaned++;
+            if (await this.cleanupPage(page.id, workspace.id, retentionDate)) {
+              totalCleaned++;
+            }
           } catch (error) {
             this.logger.error(
               `Failed to cleanup page ${page.id}: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -70,58 +74,87 @@ export class TrashCleanupService {
     }
   }
 
-  private async cleanupPage(pageId: string) {
-    // Get all descendants using recursive CTE (including the page itself)
-    const descendants = await this.db
-      .withRecursive('page_descendants', (db) =>
-        db
-          .selectFrom('pages')
-          .select(['id'])
-          .where('id', '=', pageId)
-          .unionAll((exp) =>
-            exp
-              .selectFrom('pages as p')
-              .select(['p.id'])
-              .innerJoin('page_descendants as pd', 'pd.id', 'p.parentPageId'),
-          ),
+  private async cleanupPage(
+    pageId: string,
+    workspaceId: string,
+    retentionDate: Date,
+  ) {
+    const deletedIds = await executeTx(this.db, async (trx) => {
+      const candidate = await trx
+        .selectFrom('pages')
+        .select('spaceId')
+        .where('id', '=', pageId)
+        .where('workspaceId', '=', workspaceId)
+        .executeTakeFirst();
+      if (!candidate) return [];
+
+      // Restore and hierarchy changes take the same lock before touching rows.
+      await this.pageRepo.lockPageHierarchySpaces([candidate.spaceId], trx);
+      const root = await trx
+        .selectFrom('pages')
+        .select('id')
+        .where('id', '=', pageId)
+        .where('workspaceId', '=', workspaceId)
+        .where('spaceId', '=', candidate.spaceId)
+        .where('deletedAt', '<', retentionDate)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!root) return [];
+
+      const descendants = await trx
+        .withRecursive('page_descendants', (qb) =>
+          qb
+            .selectFrom('pages')
+            .select('id')
+            .where('id', '=', pageId)
+            .unionAll((qb) =>
+              qb
+                .selectFrom('pages as p')
+                .select('p.id')
+                .innerJoin('page_descendants as pd', 'pd.id', 'p.parentPageId'),
+            ),
+        )
+        .selectFrom('pages')
+        .select(['pages.id', 'pages.deletedAt'])
+        .where('pages.id', 'in', (qb) =>
+          qb.selectFrom('page_descendants').select('id'),
+        )
+        .orderBy('pages.id')
+        .forUpdate()
+        .execute();
+
+      // parent_page_id cascades on deletion. Never cascade into a restored or
+      // recently trashed descendant, even if the root has expired.
+      if (
+        descendants.some(
+          (page) => !page.deletedAt || page.deletedAt >= retentionDate,
+        )
       )
-      .selectFrom('page_descendants')
-      .selectAll()
-      .execute();
+        return [];
+      const deleted = await trx
+        .deleteFrom('pages')
+        .where(
+          'id',
+          'in',
+          descendants.map((page) => page.id),
+        )
+        .returning('id')
+        .execute();
+      return deleted.map((page) => page.id);
+    });
 
-    const pageIds = descendants.map((d) => d.id);
-
-    this.logger.debug(
-      `Cleaning up page ${pageId} with ${pageIds.length - 1} descendants`,
-    );
-
-    // Queue attachment deletion for all pages with unique job IDs to prevent duplicates
-    for (const id of pageIds) {
+    // Do not delete files until the page deletion has committed successfully.
+    for (const id of deletedIds) {
       await this.attachmentQueue.add(
         QueueJob.DELETE_PAGE_ATTACHMENTS,
-        {
-          pageId: id,
-        },
+        { pageId: id },
         {
           jobId: `delete-page-attachments-${id}`,
           attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 5000,
-          },
+          backoff: { type: 'exponential', delay: 5000 },
         },
       );
     }
-
-    try {
-      if (pageIds.length > 0) {
-        await this.db.deleteFrom('pages').where('id', 'in', pageIds).execute();
-      }
-    } catch (error) {
-      // Log but don't throw - pages might have been deleted by another node
-      this.logger.warn(
-        `Error deleting pages, they may have been already deleted: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
-    }
+    return deletedIds.length > 0;
   }
 }

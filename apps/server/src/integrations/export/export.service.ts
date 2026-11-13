@@ -16,7 +16,6 @@ import {
   computeLocalPath,
   getExportExtension,
   getPageTitle,
-  getSafePageTitle,
   PageExportTree,
   replaceInternalLinks,
   updateAttachmentUrlsToLocalPaths,
@@ -311,12 +310,16 @@ export class ExportService {
         );
 
         if (includeAttachments) {
-          await this.zipAttachments(updatedJsonContent, folder, allowedAttachments);
+          await this.zipAttachments(
+            updatedJsonContent,
+            folder,
+            allowedAttachments,
+          );
           updatedJsonContent =
             updateAttachmentUrlsToLocalPaths(updatedJsonContent);
         }
 
-        const pageTitle = getSafePageTitle(page.title);
+        const pageTitle = page.exportFileName;
         const pageExportContent = await this.exportPage(format, {
           ...page,
           content: updatedJsonContent,
@@ -391,7 +394,9 @@ export class ExportService {
     for (const siblings of Object.values(tree)) {
       for (const page of siblings) {
         if (!spaceId) spaceId = page.spaceId;
-        for (const id of getAttachmentIds(getProsemirrorContent(page.content))) {
+        for (const id of getAttachmentIds(
+          getProsemirrorContent(page.content),
+        )) {
           allAttachmentIds.add(id);
         }
       }
@@ -412,9 +417,7 @@ export class ExportService {
     if (!ignorePermissions && userId) {
       const ownerPageIds = [
         ...new Set(
-          attachments
-            .map((a) => a.pageId)
-            .filter((id): id is string => !!id),
+          attachments.map((a) => a.pageId).filter((id): id is string => !!id),
         ),
       ];
       const accessible = ownerPageIds.length

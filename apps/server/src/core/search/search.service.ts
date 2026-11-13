@@ -3,7 +3,7 @@ import { SearchDTO, SearchSuggestionDTO } from './dto/search.dto';
 import { SearchResponseDto } from './dto/search-response.dto';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
-import { sql } from 'kysely';
+import { sql, SqlBool } from 'kysely';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import { ShareRepo } from '@docmost/db/repos/share/share.repo';
@@ -142,9 +142,32 @@ export class SearchService {
       )
       .where('deletedAt', 'is', null)
       .where('workspaceId', '=', opts.workspaceId)
+      // Authorize every restricted ancestor before pagination. Filtering only
+      // the limited result set can hide all accessible matches on later rows.
+      .$if(Boolean(opts.userId), (qb) =>
+        qb.where(sql<SqlBool>`NOT EXISTS (
+        WITH RECURSIVE ancestors AS (
+          SELECT p.id, p.parent_page_id FROM pages p WHERE p.id = pages.id
+          UNION ALL
+          SELECT p.id, p.parent_page_id FROM pages p
+          JOIN ancestors a ON a.parent_page_id = p.id
+        )
+        SELECT 1 FROM ancestors a
+        JOIN page_access pa ON pa.page_id = a.id
+        WHERE NOT EXISTS (
+          SELECT 1 FROM page_permissions pp
+          WHERE pp.page_access_id = pa.id
+            AND (pp.user_id = ${opts.userId}::uuid OR pp.group_id IN (
+              SELECT gu.group_id FROM group_users gu
+              WHERE gu.user_id = ${opts.userId}::uuid
+            ))
+        )
+      )`),
+      )
       .$if(indexedSearch, (qb) => qb.where('id', 'in', opts.candidatePageIds))
       .$if(browseByFilters, (qb) => qb.orderBy('updatedAt', 'desc'))
       .$if(!browseByFilters, (qb) => qb.orderBy('rank', 'desc'))
+      .orderBy('id', 'asc')
       .limit(searchParams.limit || 25)
       .offset(searchParams.offset || 0);
 

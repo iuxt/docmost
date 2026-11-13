@@ -133,7 +133,7 @@ export default function PageEditor({
             (page) =>
               page && {
                 ...page,
-                permissions: { ...page.permissions, canEdit: false },
+                permissions: { ...page.permissions, canEdit: message.access === "write" },
               },
           );
         }
@@ -170,7 +170,7 @@ export default function PageEditor({
     const payload = jwtDecode(collabQuery?.token);
     const now = Date.now().valueOf() / 1000;
     const isTokenExpired = now >= payload.exp;
-    if (isTokenExpired) {
+    if (isTokenExpired || !payload["sessionId"]) {
       refetchCollabToken();
     }
   };

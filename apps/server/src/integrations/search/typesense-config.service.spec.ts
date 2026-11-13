@@ -1,13 +1,14 @@
 import { ConfigService } from '@nestjs/config';
 import { EnvironmentService } from '../environment/environment.service';
-import {
-  EncryptionPurpose,
-  EncryptionService,
-} from '../encryption/encryption.service';
 import { TypesenseConfigService } from './typesense-config.service';
 import { QueueJob } from '../queue/constants';
 
-function setup(legacy: Record<string, string> = {}) {
+const connection = {
+  TYPESENSE_URL: 'http://typesense:8108/',
+  TYPESENSE_API_KEY: 'server-secret',
+};
+
+function setup(config: Record<string, string> = connection) {
   const rows = new Map<string, any>();
   const db = {
     selectFrom: jest.fn(() => {
@@ -35,48 +36,48 @@ function setup(legacy: Record<string, string> = {}) {
       return qb;
     }),
   };
-  const environment = new EnvironmentService(
-    new ConfigService({ APP_SECRET: 'test-secret-'.repeat(4), ...legacy }),
-  );
-  const encryption = new EncryptionService(environment);
+  const environment = new EnvironmentService(new ConfigService(config));
   const queue = { add: jest.fn() };
   const service = new TypesenseConfigService(
     db as any,
-    encryption,
+    environment,
     queue as any,
   );
-  return { service, rows, encryption, queue, db };
+  return { service, rows, queue, db };
 }
 
-const dto = {
-  url: 'http://typesense:8108/',
-  apiKey: 'workspace-secret',
-  locale: 'zh',
-};
-
-describe('Typesense connection settings', () => {
+describe('Typesense server connection and workspace language', () => {
   let fetchMock: jest.SpyInstance;
   beforeEach(() => {
     fetchMock = jest
       .spyOn(global, 'fetch')
-      .mockImplementation(async () => new Response('[]'));
+      .mockResolvedValue(new Response('[]'));
   });
   afterEach(() => jest.restoreAllMocks());
 
-  it('encrypts keys, returns only safe settings, and queues workspace indexing', async () => {
-    const { service, rows, encryption, queue } = setup();
-    const result = await service.save('workspace-1', dto);
-    expect(result).toEqual({
-      url: 'http://typesense:8108',
-      locale: 'zh',
-      hasApiKey: true,
+  it('uses the environment for every workspace before any settings are saved', async () => {
+    const { service } = setup();
+    for (const id of ['workspace-1', 'workspace-2']) {
+      expect(await service.isConfigured(id)).toBe(true);
+      expect(await service.get(id)).toEqual({
+        url: 'http://typesense:8108',
+        apiKey: connection.TYPESENSE_API_KEY,
+        locale: 'zh',
+      });
+    }
+    expect(await service.get('')).toBeUndefined();
+  });
+
+  it('stores only the language and does not return the address or key to the browser', async () => {
+    const { service, rows, queue } = setup();
+    expect(await service.save('workspace-1', { locale: 'en' })).toEqual({
+      locale: 'en',
+      configured: true,
     });
-    expect(JSON.stringify(result)).not.toContain(dto.apiKey);
-    const stored = rows.get('workspace-1');
-    expect(stored.apiKey).not.toContain(dto.apiKey);
-    expect(
-      encryption.decrypt(stored.apiKey, EncryptionPurpose.SEARCH_CREDENTIALS),
-    ).toBe(dto.apiKey);
+    expect(rows.get('workspace-1')).toEqual({
+      workspaceId: 'workspace-1',
+      locale: 'en',
+    });
     expect(queue.add).toHaveBeenCalledWith(
       QueueJob.SEARCH_INDEX_PAGES,
       { workspaceId: 'workspace-1' },
@@ -85,90 +86,99 @@ describe('Typesense connection settings', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       'http://typesense:8108/collections',
       expect.objectContaining({
-        headers: { 'X-TYPESENSE-API-KEY': dto.apiKey },
+        headers: { 'X-TYPESENSE-API-KEY': connection.TYPESENSE_API_KEY },
         redirect: 'error',
       }),
     );
+    expect(await service.getSettings('workspace-2')).toEqual({
+      locale: 'zh',
+      configured: true,
+    });
   });
 
-  it('retains the saved key when updating URL or language without a new key', async () => {
-    const { service } = setup();
-    await service.save('workspace-1', dto);
-    await service.save('workspace-1', {
-      url: 'http://new-search:8108',
+  it('ignores addresses and keys from old database rows and client payloads', async () => {
+    const { service, rows } = setup();
+    rows.set('workspace-1', {
+      url: 'http://old:8108',
+      apiKey: 'old-key',
       locale: 'en',
     });
     expect(await service.get('workspace-1')).toEqual({
-      url: 'http://new-search:8108',
+      url: 'http://typesense:8108',
+      apiKey: connection.TYPESENSE_API_KEY,
       locale: 'en',
-      apiKey: dto.apiKey,
     });
-    expect(fetchMock.mock.calls[1][1].headers['X-TYPESENSE-API-KEY']).toBe(
-      dto.apiKey,
+    await service.testConnection('workspace-1', {
+      locale: 'zh',
+      url: 'http://untrusted:8108',
+      apiKey: 'client-key',
+    } as any);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'http://typesense:8108/collections',
+    );
+    expect(fetchMock.mock.calls[0][1].headers['X-TYPESENSE-API-KEY']).toBe(
+      connection.TYPESENSE_API_KEY,
     );
   });
 
-  it('tests unsaved values without changing the database or scheduling indexing', async () => {
+  it('tests without changing workspace settings or queuing indexing', async () => {
     const { service, rows, queue } = setup();
-    expect(await service.testConnection('workspace-1', dto)).toEqual({
-      success: true,
-    });
+    expect(
+      await service.testConnection('workspace-1', { locale: 'en' }),
+    ).toEqual({ success: true });
     expect(rows.size).toBe(0);
     expect(queue.add).not.toHaveBeenCalled();
   });
 
-  it('isolates workspace credentials and cannot reuse another workspace key', async () => {
-    const { service } = setup();
-    await service.save('workspace-1', dto);
-    expect(await service.isConfigured('workspace-2')).toBe(false);
-    await expect(
-      service.save('workspace-2', { url: dto.url, locale: 'zh' }),
-    ).rejects.toThrow('API key is required');
-    expect(await service.getSettings('workspace-2')).toEqual({
-      url: '',
-      locale: 'zh',
-      hasApiKey: false,
-    });
-  });
-
-  it.each([401, 503])(
-    'rejects failed connections (%s) without overwriting the saved connection',
-    async (status) => {
-      const { service, queue } = setup();
-      await service.save('workspace-1', dto);
-      fetchMock.mockResolvedValueOnce(
-        new Response('secret error response', { status }),
-      );
+  it.each([
+    {},
+    { TYPESENSE_URL: connection.TYPESENSE_URL },
+    { TYPESENSE_API_KEY: 'key' },
+  ])(
+    'does not use stored credentials when the server connection is incomplete (%j)',
+    async (env) => {
+      const { service, rows, queue } = setup(env);
+      rows.set('workspace-1', {
+        url: 'http://old:8108',
+        apiKey: 'old-key',
+        locale: 'en',
+      });
+      expect(await service.isConfigured('workspace-1')).toBe(false);
+      expect(await service.get('workspace-1')).toBeUndefined();
+      expect(await service.getSettings('workspace-1')).toEqual({
+        locale: 'en',
+        configured: false,
+      });
       await expect(
-        service.save('workspace-1', { ...dto, apiKey: 'bad-key' }),
-      ).rejects.toThrow('Unable to connect to Typesense');
-      expect((await service.get('workspace-1'))?.apiKey).toBe(dto.apiKey);
-      expect(queue.add).toHaveBeenCalledTimes(1);
+        service.save('workspace-1', { locale: 'zh' }),
+      ).rejects.toThrow('Configure TYPESENSE_URL');
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(queue.add).not.toHaveBeenCalled();
     },
   );
 
-  it('does not accept a public health endpoint or arbitrary JSON as a connection test', async () => {
+  it.each([401, 503])(
+    'rejects failed connections (%s) without saving the language',
+    async (status) => {
+      const { service, rows, queue } = setup();
+      rows.set('workspace-1', { workspaceId: 'workspace-1', locale: 'zh' });
+      fetchMock.mockResolvedValueOnce(
+        new Response('private response', { status }),
+      );
+      await expect(
+        service.save('workspace-1', { locale: 'en' }),
+      ).rejects.toThrow('Unable to connect to Typesense');
+      expect(rows.get('workspace-1').locale).toBe('zh');
+      expect(queue.add).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not treat the public health response as a successful key check', async () => {
     const { service, rows } = setup();
     fetchMock.mockResolvedValueOnce(new Response('{"ok":true}'));
-    await expect(service.save('workspace-1', dto)).rejects.toThrow(
+    await expect(service.save('workspace-1', { locale: 'zh' })).rejects.toThrow(
       'Unable to connect',
     );
     expect(rows.size).toBe(0);
-  });
-
-  it('ignores legacy environment values and requires saved workspace settings', async () => {
-    const { service } = setup({
-      TYPESENSE_URL: 'http://legacy:8108',
-      TYPESENSE_API_KEY: 'legacy-key',
-      TYPESENSE_LOCALE: 'en',
-    });
-    expect(await service.get('workspace-1')).toBeUndefined();
-    expect(await service.isConfigured('workspace-1')).toBe(false);
-    await expect(
-      service.save('workspace-1', { url: dto.url, locale: dto.locale }),
-    ).rejects.toThrow('API key is required');
-    await service.save('workspace-1', dto);
-    expect((await service.get('workspace-1'))?.apiKey).toBe(dto.apiKey);
-    expect(await service.get('workspace-2')).toBeUndefined();
   });
 });

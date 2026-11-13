@@ -6,11 +6,17 @@ import { COLLAB_ACCESS_RECHECK_CHANNEL } from '../constants';
 const WRITER = [{ userId: 'any', role: 'writer' }];
 const READER = [{ userId: 'any', role: 'reader' }];
 const NO_ACCESS = JSON.stringify({ type: 'page.permissions', access: 'none' });
-const READ_ACCESS = JSON.stringify({ type: 'page.permissions', access: 'read' });
+const READ_ACCESS = JSON.stringify({
+  type: 'page.permissions',
+  access: 'read',
+});
 
 function makeConnection(userId: string) {
   return {
-    context: { user: { id: userId, workspaceId: 'ws_1' } },
+    context: {
+      user: { id: userId, workspaceId: 'ws_1' },
+      sessionId: `session_${userId}`,
+    },
     readOnly: false,
     close: jest.fn(),
     sendStateless: jest.fn(),
@@ -36,26 +42,44 @@ async function makeExtension(
       canEdit: true,
     })),
   };
+  const userSessionRepo = {
+    findActiveById: jest.fn(async (id: string) => ({
+      userId: id.replace('session_', ''),
+      workspaceId: 'ws_1',
+    })),
+  };
+  const tokenService = {
+    verifyJwt: jest.fn(async (token: string) => ({
+      sub: token,
+      workspaceId: 'ws_1',
+      sessionId: `session_${token}`,
+    })),
+  };
+  const pageRepo = {
+    findById: jest.fn(async (id: string) => ({
+      id,
+      spaceId: 'space_1',
+      workspaceId: id === 'page_other_ws' ? 'ws_2' : 'ws_1',
+      deletedAt: null as Date | null,
+    })),
+    getPageAndDescendants: jest.fn(async (id: string) => [
+      { id },
+      { id: 'child_page' },
+    ]),
+  };
   const extension = new AuthenticationExtension(
-    { verifyJwt: jest.fn(async (token: string) => ({ sub: token, workspaceId: 'ws_1' })) } as any,
+    tokenService as any,
     {
       findById: jest.fn(async (id: string) => {
         if (id === 'user_broken') throw new Error('db down');
         return { id, workspaceId: 'ws_1' };
       }),
     } as any,
-    {
-      findById: jest.fn(async (id: string) => ({
-        id,
-        spaceId: 'space_1',
-        workspaceId: id === 'page_other_ws' ? 'ws_2' : 'ws_1',
-        deletedAt: null,
-      })),
-      getPageAndDescendants: jest.fn(async (id: string) => [{ id }, { id: 'child_page' }]),
-    } as any,
+    pageRepo as any,
     spaceMemberRepo as any,
     pagePermissionRepo as any,
     { getOrThrow: () => ({ duplicate: () => subscriber }) } as any,
+    userSessionRepo as any,
   );
   const instance = {
     documents: new Map(
@@ -66,7 +90,15 @@ async function makeExtension(
     ),
   };
   await extension.onConfigure({ instance } as any);
-  return { extension, subscriber, spaceMemberRepo, pagePermissionRepo };
+  return {
+    extension,
+    subscriber,
+    spaceMemberRepo,
+    pagePermissionRepo,
+    userSessionRepo,
+    pageRepo,
+    tokenService,
+  };
 }
 
 describe('AuthenticationExtension access recheck', () => {
@@ -199,9 +231,9 @@ describe('AuthenticationExtension onAuthenticate', () => {
     await extension.onAuthenticate(readerPayload);
     expect(readerPayload.connectionConfig.readOnly).toBe(true);
 
-    await expect(extension.onAuthenticate(payload('user_none'))).rejects.toThrow(
-      UnauthorizedException,
-    );
+    await expect(
+      extension.onAuthenticate(payload('user_none')),
+    ).rejects.toThrow(UnauthorizedException);
   });
 
   it('rejects pages from another workspace', async () => {
@@ -217,5 +249,129 @@ describe('AuthenticationExtension onAuthenticate', () => {
       } as any),
     ).rejects.toThrow(NotFoundException);
     expect(spaceMemberRepo.getUserSpaceRoles).not.toHaveBeenCalled();
+  });
+});
+
+describe('Collaboration session and deletion protection', () => {
+  it('restores write access on an existing connection after the page is restored', async () => {
+    const connection = makeConnection('user_writer');
+    connection.readOnly = true;
+    const { extension } = await makeExtension(
+      { user_writer: WRITER },
+      { 'page.page_1': [connection] },
+    );
+    await extension.recheckAccess({ pageIds: ['page_1'] });
+    expect(connection.readOnly).toBe(false);
+    expect(connection.sendStateless).toHaveBeenCalledWith(
+      JSON.stringify({ type: 'page.permissions', access: 'write' }),
+    );
+  });
+  it.each([
+    ['revoked', undefined],
+    ['different user', { userId: 'other', workspaceId: 'ws_1' }],
+    ['different workspace', { userId: 'user_writer', workspaceId: 'other' }],
+  ])('rejects a %s session on reconnect', async (_label, session) => {
+    const { extension, userSessionRepo } = await makeExtension({
+      user_writer: WRITER,
+    });
+    userSessionRepo.findActiveById.mockResolvedValue(session);
+    await expect(
+      extension.onAuthenticate({
+        documentName: 'page.page_1',
+        token: 'user_writer',
+        connectionConfig: {},
+      } as any),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('rejects legacy tokens without a session', async () => {
+    const { extension, tokenService, userSessionRepo } = await makeExtension({
+      user_writer: WRITER,
+    });
+    tokenService.verifyJwt.mockResolvedValue({
+      sub: 'user_writer',
+      workspaceId: 'ws_1',
+      sessionId: undefined,
+    });
+    await expect(
+      extension.onAuthenticate({
+        documentName: 'page.page_1',
+        token: 'user_writer',
+        connectionConfig: {},
+      } as any),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(userSessionRepo.findActiveById).not.toHaveBeenCalled();
+  });
+
+  it('closes a revoked session while preserving another session of the same user', async () => {
+    const revoked = makeConnection('user_writer');
+    const current = makeConnection('user_writer');
+    current.context.sessionId = 'current';
+    const { extension, userSessionRepo } = await makeExtension(
+      { user_writer: WRITER },
+      { 'page.page_1': [revoked, current] },
+    );
+    userSessionRepo.findActiveById.mockImplementation(async (id) =>
+      id === 'current'
+        ? { userId: 'user_writer', workspaceId: 'ws_1' }
+        : undefined,
+    );
+    await extension.recheckAccess({ userIds: ['user_writer'] });
+    expect(revoked.close).toHaveBeenCalledWith(Forbidden);
+    expect(current.close).not.toHaveBeenCalled();
+  });
+
+  it('rechecks deleted descendants and makes already open editors read-only', async () => {
+    const connection = makeConnection('user_writer');
+    const { extension, pageRepo } = await makeExtension(
+      { user_writer: WRITER },
+      { 'page.child_page': [connection] },
+    );
+    pageRepo.findById.mockResolvedValue({
+      id: 'child_page',
+      spaceId: 'space_1',
+      workspaceId: 'ws_1',
+      deletedAt: new Date(),
+    });
+    await extension.recheckAccess({ pageIds: ['page_1'] });
+    expect(pageRepo.getPageAndDescendants).toHaveBeenCalledWith('page_1', {
+      includeContent: false,
+      includeDeleted: true,
+    });
+    expect(connection.readOnly).toBe(true);
+    expect(connection.sendStateless).toHaveBeenCalledWith(READ_ACCESS);
+  });
+
+  it('blocks an incoming message from a revoked session even without a pubsub message', async () => {
+    const connection = makeConnection('user_writer');
+    const { extension, userSessionRepo } = await makeExtension({
+      user_writer: WRITER,
+    });
+    userSessionRepo.findActiveById.mockResolvedValue(undefined);
+    await expect(
+      extension.beforeHandleMessage({
+        connection,
+        documentName: 'page.page_1',
+      } as any),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(connection.close).toHaveBeenCalledWith(Forbidden);
+  });
+
+  it('downgrades an incoming write before a deletion broadcast arrives', async () => {
+    const connection = makeConnection('user_writer');
+    const { extension, pageRepo } = await makeExtension({
+      user_writer: WRITER,
+    });
+    pageRepo.findById.mockResolvedValue({
+      id: 'page_1',
+      spaceId: 'space_1',
+      workspaceId: 'ws_1',
+      deletedAt: new Date(),
+    });
+    await extension.beforeHandleMessage({
+      connection,
+      documentName: 'page.page_1',
+    } as any);
+    expect(connection.readOnly).toBe(true);
   });
 });

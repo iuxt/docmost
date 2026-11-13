@@ -44,6 +44,7 @@ import {
 import { EnvironmentService } from '../../../integrations/environment/environment.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventName } from '../../../common/events/event.contants';
+import { CollabAccessService } from '../../../collaboration/services/collab-access.service';
 
 @Injectable()
 export class AuthService {
@@ -63,6 +64,7 @@ export class AuthService {
     @InjectKysely() private readonly db: KyselyDB,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
     private wsService: WsService,
+    private readonly collabAccessService: CollabAccessService,
   ) {}
 
   async login(loginDto: LoginDto, workspaceId: string) {
@@ -162,6 +164,8 @@ export class AuthService {
       await this.userSessionRepo.deleteByUserId(userId, workspaceId);
       this.wsService.disconnectUser(userId);
     }
+
+    await this.collabAccessService.recheckAccess({ userIds: [userId] });
 
     this.auditService.log({
       event: AuditEvent.USER_PASSWORD_CHANGED,
@@ -278,6 +282,7 @@ export class AuthService {
 
     await this.userSessionRepo.deleteByUserId(user.id, workspace.id);
     this.wsService.disconnectUser(user.id);
+    await this.collabAccessService.recheckAccess({ userIds: [user.id] });
 
     // A failed revocation must not block the reset itself; log loudly instead.
     try {
@@ -346,10 +351,11 @@ export class AuthService {
     }
   }
 
-  async getCollabToken(user: User, workspaceId: string) {
+  async getCollabToken(user: User, workspaceId: string, sessionId: string) {
     const token = await this.tokenService.generateCollabToken(
       user,
       workspaceId,
+      sessionId,
     );
     return { token };
   }

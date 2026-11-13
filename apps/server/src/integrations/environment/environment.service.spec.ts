@@ -39,3 +39,23 @@ describe('EnvironmentService search configuration', () => {
     ).toBe('database');
   });
 });
+
+describe('EnvironmentService Typesense connection', () => {
+  it('normalizes the URL and key', () => {
+    const service = setup({
+      TYPESENSE_URL: ' http://typesense:8108/// ',
+      TYPESENSE_API_KEY: ' key ',
+    });
+    expect(service.getTypesenseUrl()).toBe('http://typesense:8108');
+    expect(service.getTypesenseApiKey()).toBe('key');
+    expect(service.isTypesenseConfigured()).toBe(true);
+  });
+  it.each([
+    {},
+    { TYPESENSE_URL: 'http://typesense:8108' },
+    { TYPESENSE_API_KEY: 'key' },
+    { TYPESENSE_URL: 'http://typesense:8108', TYPESENSE_API_KEY: '   ' },
+  ])('requires both connection values (%j)', (env) => {
+    expect(setup(env).isTypesenseConfigured()).toBe(false);
+  });
+});

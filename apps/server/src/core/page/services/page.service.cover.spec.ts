@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PageService } from './page.service';
 import { QueueJob } from '../../../integrations/queue/constants';
 import { COVER_CLEANUP_DELAY_MS } from '../page-cover.constants';
@@ -117,6 +117,18 @@ function makeService(attachment: unknown = null) {
 }
 
 describe('PageService.update cover', () => {
+  it('rejects updates to a trashed page', async () => {
+    const { service, pageRepo } = makeService();
+    await expect(service.update(makePage({ deletedAt: new Date() }), { pageId: PAGE_ID, title: 'changed' } as any, user)).rejects.toThrow(NotFoundException);
+    expect(pageRepo.updatePage).not.toHaveBeenCalled();
+  });
+
+  it('rechecks deletion under the write lock before updating a stale page', async () => {
+    const { service, pageRepo } = makeService();
+    pageRepo.findById.mockResolvedValue(makePage({ deletedAt: new Date() }));
+    await expect(service.update(makePage(), { pageId: PAGE_ID, title: 'changed' } as any, user)).rejects.toThrow(NotFoundException);
+    expect(pageRepo.updatePage).not.toHaveBeenCalled();
+  });
   it('stores a preset cover and recenters it', async () => {
     const { service, savedFields } = makeService();
     const page = makePage({ coverPhoto: 'preset:color-red', coverPosition: 20 });

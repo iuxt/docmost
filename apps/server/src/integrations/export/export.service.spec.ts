@@ -135,11 +135,15 @@ function mentionLookup(queries: CompiledQuery[]) {
 
 describe('ExportService page mentions', () => {
   it('links a mentioned page the user can open with its current title', async () => {
-    const { service } = buildService({ accessiblePageIds: [MENTIONED_PAGE_ID] });
+    const { service } = buildService({
+      accessiblePageIds: [MENTIONED_PAGE_ID],
+    });
 
     const html = await exportSinglePage(service);
 
-    expect(html).toContain(`href="${BASE_URL}/s/private/p/live-title-liveslug"`);
+    expect(html).toContain(
+      `href="${BASE_URL}/s/private/p/live-title-liveslug"`,
+    );
     expect(html).toContain('Live title');
   });
 
@@ -187,9 +191,107 @@ describe('ExportService page mentions', () => {
     );
 
     expect(mentionLookup(queries).parameters).not.toContain('not-a-page-id');
-    for (const [args] of pagePermissionRepo.filterAccessiblePageIds.mock.calls) {
+    for (const [args] of pagePermissionRepo.filterAccessiblePageIds.mock
+      .calls) {
       expect(args.pageIds).not.toContain('not-a-page-id');
     }
     expect(JSON.stringify(json)).toContain('Live title');
+  });
+});
+
+describe('ExportService filename collisions', () => {
+  it('keeps every page, unique metadata paths and links when sanitized names collide', async () => {
+    const titles = ['A?', 'A*', 'A (1)', 'a'];
+    const pages: any[] = [
+      {
+        id: SOURCE_PAGE_ID,
+        slugId: 'root',
+        title: 'Root',
+        parentPageId: null,
+        workspaceId: WORKSPACE_ID,
+        spaceId: SPACE_ID,
+        content: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: titles.map((title, index) => ({
+                type: 'text',
+                text: title,
+                marks: [
+                  {
+                    type: 'link',
+                    attrs: {
+                      href: `${BASE_URL}/s/private/p/title-child${index}`,
+                    },
+                  },
+                ],
+              })),
+            },
+          ],
+        },
+      },
+      ...titles.map((title, index) => ({
+        id: `child-${index}`,
+        slugId: `child${index}`,
+        title,
+        parentPageId: SOURCE_PAGE_ID,
+        workspaceId: WORKSPACE_ID,
+        spaceId: SPACE_ID,
+        content: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: `unique body ${index}` }],
+            },
+          ],
+        },
+      })),
+    ];
+    const { service } = buildService({ accessiblePageIds: [] });
+    (service as any).pageRepo.getPageAndDescendants = async () => pages;
+    const result = await service.exportPages(
+      SOURCE_PAGE_ID,
+      ExportFormat.Markdown,
+      false,
+      true,
+      USER_ID,
+      true,
+    );
+    if (result.type !== 'zip') throw new Error('expected ZIP');
+    const zipBuffer = await new Promise<Buffer>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      result.stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+      result.stream.on('end', () => resolve(Buffer.concat(chunks)));
+      result.stream.on('error', reject);
+    });
+    const JSZip = require('jszip');
+    const zip = await JSZip.loadAsync(zipBuffer);
+    const names = Object.keys(zip.files).filter((name) => name.endsWith('.md'));
+    expect(names).toHaveLength(5);
+    expect(new Set(names.map((name) => name.toLowerCase())).size).toBe(5);
+    const metadata = JSON.parse(
+      await zip.file('docmost-metadata.json').async('string'),
+    );
+    expect(Object.keys(metadata.pages)).toHaveLength(5);
+    expect(
+      new Set(Object.values(metadata.pages).map((page: any) => page.pageId))
+        .size,
+    ).toBe(5);
+    const root = await zip.file('Root.md').async('string');
+    for (let index = 0; index < titles.length; index++) {
+      const [encodedPath] = Object.entries(metadata.pages).find(
+        ([, page]: any) => page.pageId === `child-${index}`,
+      )!;
+      expect(decodeURIComponent(root)).toContain(
+        decodeURIComponent(encodedPath),
+      );
+      const exported = await zip
+        .file(decodeURIComponent(encodedPath))
+        .async('string');
+      expect(exported).toContain(`unique body ${index}`);
+    }
+    expect(pages.slice(1).map((page) => page.title)).toEqual(titles);
   });
 });

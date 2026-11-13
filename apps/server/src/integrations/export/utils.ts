@@ -8,7 +8,10 @@ import { Page } from '@docmost/db/types/entity.types';
 import { isAttachmentNode } from '../../common/helpers/prosemirror/utils';
 import { sanitizeFileName } from '../../common/helpers';
 
-export type PageExportTree = Record<string, Page[]>;
+export type PageExportTree = Record<
+  string,
+  (Page & { exportFileName: string })[]
+>;
 
 export const INTERNAL_LINK_REGEX =
   /^(https?:\/\/)?([^\/]+)?(\/s\/([^\/]+)\/)?p\/([a-zA-Z0-9-]+)\/?$/;
@@ -102,7 +105,10 @@ export function replaceInternalLinks(
             // if link and text are same, use page title
             if (markLink === node.text) {
               //@ts-expect-error
-              node.text = getInternalLinkPageName(relativePath, currentPagePath);
+              node.text = getInternalLinkPageName(
+                relativePath,
+                currentPagePath,
+              );
             }
           }
         }
@@ -113,7 +119,10 @@ export function replaceInternalLinks(
   return doc.toJSON();
 }
 
-export function getInternalLinkPageName(path: string, currentFilePath?: string): string {
+export function getInternalLinkPageName(
+  path: string,
+  currentFilePath?: string,
+): string {
   const name = path?.split('/').pop().split('.').slice(0, -1).join('.');
   try {
     return decodeURIComponent(name);
@@ -137,30 +146,25 @@ export function extractPageSlugId(input: string): string {
 }
 
 export function buildTree(pages: Page[]): PageExportTree {
-  const tree: PageExportTree = {};
-  const titleCount: Record<string, Record<string, number>> = {};
+  const tree: PageExportTree = Object.create(null);
+  const usedNames = new Map<string | null, Set<string>>();
 
   for (const page of pages) {
     const parentPageId = page.parentPageId;
 
-    if (!titleCount[parentPageId]) {
-      titleCount[parentPageId] = {};
+    const names = usedNames.get(parentPageId) ?? new Set<string>();
+    usedNames.set(parentPageId, names);
+    const baseName = getSafePageTitle(page.title);
+    let exportFileName = baseName;
+    let suffix = 1;
+    while (names.has(exportFileName.toLowerCase())) {
+      exportFileName = `${baseName} (${suffix++})`;
     }
-
-    let title = getPageTitle(page.title);
-
-    if (titleCount[parentPageId][title]) {
-      title = `${title} (${titleCount[parentPageId][title]})`;
-      titleCount[parentPageId][getPageTitle(page.title)] += 1;
-    } else {
-      titleCount[parentPageId][title] = 1;
-    }
-
-    page.title = title;
+    names.add(exportFileName.toLowerCase());
     if (!tree[parentPageId]) {
       tree[parentPageId] = [];
     }
-    tree[parentPageId].push(page);
+    tree[parentPageId].push({ ...page, exportFileName });
   }
   return tree;
 }
@@ -175,7 +179,7 @@ export function computeLocalPath(
   const children = tree[parentPageId] || [];
 
   for (const page of children) {
-    const title = encodeURIComponent(getSafePageTitle(page.title));
+    const title = encodeURIComponent(page.exportFileName);
     const localPath = `${currentPath}${title}`;
     slugIdToPath[page.slugId] = `${localPath}${getExportExtension(format)}`;
 

@@ -330,7 +330,7 @@ export class PageController {
           'Only space admins can permanently delete pages',
         );
       }
-      await this.pageService.forceDelete(deletePageDto.pageId, workspace.id);
+      await this.pageService.forceDelete(page.id, workspace.id);
 
       this.auditService.log({
         event: AuditEvent.PAGE_DELETED,
@@ -351,7 +351,7 @@ export class PageController {
       await this.pageAccessService.validateCanEdit(page, user);
 
       await this.pageService.removePage(
-        deletePageDto.pageId,
+        page.id,
         user.id,
         workspace.id,
       );
@@ -395,7 +395,7 @@ export class PageController {
     // make sure they have page level access to the page
     await this.pageAccessService.validateCanEdit(page, user);
 
-    await this.pageRepo.restorePage(pageIdDto.pageId, workspace.id);
+    await this.pageService.restorePage(page.id, workspace.id);
 
     this.auditService.log({
       event: AuditEvent.PAGE_RESTORED,

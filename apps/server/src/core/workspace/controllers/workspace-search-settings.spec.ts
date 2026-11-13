@@ -19,7 +19,7 @@ function setup() {
   return { controller, config };
 }
 const workspace = { id: 'server-workspace' } as any;
-const dto = { url: 'http://search:8108', locale: 'zh', apiKey: 'secret' };
+const dto = { locale: 'zh' };
 
 describe('Workspace search configuration authorization', () => {
   it.each([UserRole.MEMBER])(

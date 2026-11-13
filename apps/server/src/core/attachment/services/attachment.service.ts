@@ -76,6 +76,7 @@ export class AttachmentService {
 
     let isUpdate = false;
     let attachmentId = null;
+    let existingFilePath: string | undefined;
 
     // passing attachmentId to allow for updating diagrams
     // instead of creating new files for each save
@@ -97,12 +98,13 @@ export class AttachmentService {
         throw new BadRequestException('File attachment does not match');
       }
       attachmentId = opts.attachmentId;
+      existingFilePath = existingAttachment.filePath;
       isUpdate = true;
     } else {
       attachmentId = uuid7();
     }
 
-    const filePath = `${getAttachmentFolderPath(AttachmentType.File, workspaceId)}/${attachmentId}/${preparedFile.fileName}`;
+    const filePath = existingFilePath ?? `${getAttachmentFolderPath(AttachmentType.File, workspaceId)}/${attachmentId}/${preparedFile.fileName}`;
 
     // Update fileSize from the consumed stream
     const isCover = type === AttachmentType.PageCover;

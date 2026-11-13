@@ -179,6 +179,7 @@ describe.each([
       pageId: PAGE_ID,
       fileExt: '.pdf',
       workspaceId: WORKSPACE.id,
+      filePath: EXISTING_KEY,
     });
     attachmentRepo.insertAttachment.mockImplementation(async (row) => row);
     attachmentRepo.updateAttachment.mockImplementation(async (row, id) => ({
@@ -452,6 +453,15 @@ describe.each([
 
     beforeEach(async () => {
       await storage.put(EXISTING_KEY, existing);
+    });
+
+    it('replaces the stored object even when the uploaded filename changes', async () => {
+      const content = Buffer.from('new diagram content');
+      const response = await postFile('renamed.pdf', content, { attachmentId: ATTACHMENT_ID });
+      expect(response.statusCode).toBe(200);
+      expect(await storage.read(EXISTING_KEY)).toEqual(content);
+      expect(response.json().fileName).toBe('diagram.pdf');
+      expect((await storage.leftovers()).some((path) => path.endsWith('renamed.pdf'))).toBe(false);
     });
 
     it.each([

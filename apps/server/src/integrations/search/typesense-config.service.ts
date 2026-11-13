@@ -3,10 +3,7 @@ import { InjectKysely } from 'nestjs-kysely';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
-import {
-  EncryptionPurpose,
-  EncryptionService,
-} from '../encryption/encryption.service';
+import { EnvironmentService } from '../environment/environment.service';
 import { QueueJob, QueueName } from '../queue/constants';
 import { UpdateTypesenseConfigDto } from '../../core/workspace/dto/update-typesense-config.dto';
 
@@ -20,39 +17,37 @@ export interface TypesenseConfig {
 export class TypesenseConfigService {
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
-    private readonly encryption: EncryptionService,
+    private readonly environment: EnvironmentService,
     @InjectQueue(QueueName.SEARCH_QUEUE) private readonly queue: Queue,
   ) {}
 
   async get(workspaceId: string): Promise<TypesenseConfig | undefined> {
-    if (!workspaceId) return;
+    if (!(await this.isConfigured(workspaceId))) return;
     const row = await this.db
       .selectFrom('workspaceSearchConfigs')
-      .select(['url', 'apiKey', 'locale'])
+      .select('locale')
       .where('workspaceId', '=', workspaceId)
       .executeTakeFirst();
-    if (row) {
-      return {
-        url: row.url,
-        locale: row.locale,
-        apiKey: this.encryption.decrypt(
-          row.apiKey,
-          EncryptionPurpose.SEARCH_CREDENTIALS,
-        ),
-      };
-    }
+    return {
+      url: this.environment.getTypesenseUrl(),
+      apiKey: this.environment.getTypesenseApiKey(),
+      locale: row?.locale ?? 'zh',
+    };
   }
 
   async isConfigured(workspaceId: string): Promise<boolean> {
-    return Boolean(await this.get(workspaceId));
+    return Boolean(workspaceId && this.environment.isTypesenseConfigured());
   }
 
   async getSettings(workspaceId: string) {
-    const config = await this.get(workspaceId);
+    const row = await this.db
+      .selectFrom('workspaceSearchConfigs')
+      .select('locale')
+      .where('workspaceId', '=', workspaceId)
+      .executeTakeFirst();
     return {
-      url: config?.url ?? '',
-      locale: config?.locale ?? 'zh',
-      hasApiKey: Boolean(config?.apiKey),
+      locale: row?.locale ?? 'zh',
+      configured: await this.isConfigured(workspaceId),
     };
   }
 
@@ -60,11 +55,16 @@ export class TypesenseConfigService {
     workspaceId: string,
     dto: UpdateTypesenseConfigDto,
   ): Promise<TypesenseConfig> {
-    const current = await this.get(workspaceId);
-    const apiKey = dto.apiKey?.trim() || current?.apiKey;
-    if (!apiKey)
-      throw new BadRequestException('Typesense API key is required.');
-    return { url: dto.url.replace(/\/+$/, ''), apiKey, locale: dto.locale };
+    if (!(await this.isConfigured(workspaceId))) {
+      throw new BadRequestException(
+        'Configure TYPESENSE_URL and TYPESENSE_API_KEY on the server before enabling search.',
+      );
+    }
+    return {
+      url: this.environment.getTypesenseUrl(),
+      apiKey: this.environment.getTypesenseApiKey(),
+      locale: dto.locale,
+    };
   }
 
   async testConnection(workspaceId: string, dto: UpdateTypesenseConfigDto) {
@@ -95,11 +95,6 @@ export class TypesenseConfigService {
     await this.checkConnection(config);
     const values = {
       workspaceId,
-      url: config.url,
-      apiKey: this.encryption.encrypt(
-        config.apiKey,
-        EncryptionPurpose.SEARCH_CREDENTIALS,
-      ),
       locale: config.locale,
     };
     await this.db

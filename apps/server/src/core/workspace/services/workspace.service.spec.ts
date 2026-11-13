@@ -153,7 +153,7 @@ describe('WorkspaceService search settings', () => {
     const { service, workspaceRepo, searchQueue } = buildService();
     await expect(
       service.update(workspaceId, { searchDriver: 'typesense' } as any),
-    ).rejects.toThrow('Configure Typesense in workspace settings');
+    ).rejects.toThrow('Configure TYPESENSE_URL and TYPESENSE_API_KEY');
     expect(workspaceRepo.updateSearchDriver).not.toHaveBeenCalled();
     expect(searchQueue.add).not.toHaveBeenCalled();
   });

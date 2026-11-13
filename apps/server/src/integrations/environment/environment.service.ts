@@ -278,6 +278,21 @@ export class EnvironmentService {
     return 'database';
   }
 
+  getTypesenseUrl(): string {
+    return this.configService
+      .get<string>('TYPESENSE_URL', '')
+      .trim()
+      .replace(/\/+$/, '');
+  }
+
+  getTypesenseApiKey(): string {
+    return this.configService.get<string>('TYPESENSE_API_KEY', '').trim();
+  }
+
+  isTypesenseConfigured(): boolean {
+    return Boolean(this.getTypesenseUrl() && this.getTypesenseApiKey());
+  }
+
   getAiDriver(): string {
     return this.configService.get<string>('AI_DRIVER');
   }

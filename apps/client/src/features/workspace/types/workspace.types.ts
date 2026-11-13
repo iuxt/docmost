@@ -130,13 +130,10 @@ export interface IVersion {
 }
 
 export interface ITypesenseSettings {
-  url: string;
   locale: string;
-  hasApiKey: boolean;
+  configured: boolean;
 }
 
 export interface IUpdateTypesenseSettings {
-  url: string;
   locale: string;
-  apiKey?: string;
 }

@@ -3,7 +3,6 @@ import { PostgresJSDialect } from 'kysely-postgres-js';
 import * as postgres from 'postgres';
 import { ConfigService } from '@nestjs/config';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
-import { EncryptionService } from '../../integrations/encryption/encryption.service';
 import { TypesenseConfigService } from '../../integrations/search/typesense-config.service';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 import { TypesenseService } from './typesense.service';
@@ -11,6 +10,8 @@ import {
   up,
   down,
 } from '../../database/migrations/20261113T130000-typesense-settings';
+
+import { up as moveCredentials } from '../../database/migrations/20261113T140000-typesense-server-credentials';
 
 // Requires disposable PostgreSQL AND Typesense instances. This suite creates and drops tables.
 const describeIntegration =
@@ -45,15 +46,24 @@ describeIntegration('Typesense settings database integration', () => {
     await sql`insert into pages (id, title, text_content, workspace_id, space_id) values (${pageId}, '中文测试文档', 'Collaboration handbook', ${workspaceId}, ${workspaceId})`.execute(
       db,
     );
-    // Deliberately omit all application Typesense environment variables.
-    const environment = new EnvironmentService(
-      new ConfigService({ APP_SECRET: 'disposable-test-app-secret'.repeat(2) }),
-    );
-    config = new TypesenseConfigService(
+    await sql`insert into workspace_search_configs (workspace_id, url, api_key, locale)
+      values (${workspaceId}, 'http://obsolete:8108', 'obsolete-encrypted-key', 'en')`.execute(
       db,
-      new EncryptionService(environment),
-      queue as any,
     );
+    await moveCredentials(db);
+    const columns = await db.introspection.getTables();
+    expect(
+      columns
+        .find((table) => table.name === 'workspace_search_configs')
+        .columns.map((column) => column.name),
+    ).toEqual(['workspace_id', 'locale']);
+    const environment = new EnvironmentService(
+      new ConfigService({
+        TYPESENSE_URL: process.env.TYPESENSE_TEST_URL,
+        TYPESENSE_API_KEY: process.env.TYPESENSE_TEST_API_KEY,
+      }),
+    );
+    config = new TypesenseConfigService(db, environment, queue as any);
     service = new TypesenseService(config, db, queue as any);
   });
 
@@ -77,16 +87,14 @@ describeIntegration('Typesense settings database integration', () => {
     }
   });
 
-  it('saves encrypted credentials and changes indexing/search immediately without application environment variables', async () => {
-    expect(await config.isConfigured(workspaceId)).toBe(false);
+  it('keeps workspace languages while using only server credentials for indexing and search', async () => {
+    expect(await config.isConfigured(workspaceId)).toBe(true);
+    expect((await config.get(workspaceId)).locale).toBe('en');
     const saved = await config.save(workspaceId, {
-      url: process.env.TYPESENSE_TEST_URL,
-      apiKey: process.env.TYPESENSE_TEST_API_KEY,
       locale: 'en',
     });
     expect(saved).toEqual({
-      url: process.env.TYPESENSE_TEST_URL,
-      hasApiKey: true,
+      configured: true,
       locale: 'en',
     });
     const stored = await db
@@ -94,8 +102,9 @@ describeIntegration('Typesense settings database integration', () => {
       .selectAll()
       .where('workspaceId', '=', workspaceId)
       .executeTakeFirstOrThrow();
-    expect(stored.apiKey).not.toBe(process.env.TYPESENSE_TEST_API_KEY);
-    expect(await config.isConfigured(otherWorkspaceId)).toBe(false);
+    expect(stored).toEqual({ workspaceId, locale: 'en' });
+    expect(await config.isConfigured(otherWorkspaceId)).toBe(true);
+    expect((await config.get(otherWorkspaceId)).locale).toBe('zh');
     await service.syncPages([pageId], true, workspaceId);
     expect(
       (await service.search('colaboration', workspaceId, false, 1)).hits.map(
@@ -103,9 +112,8 @@ describeIntegration('Typesense settings database integration', () => {
       ),
     ).toEqual([pageId]);
 
-    // Saving a language change without a key retains the encrypted credential.
+    // A language change keeps using the same server credentials.
     await config.save(workspaceId, {
-      url: process.env.TYPESENSE_TEST_URL,
       locale: 'zh',
     });
     await service.reindexBatch(undefined, workspaceId);
@@ -124,7 +132,7 @@ describeIntegration('Typesense settings database integration', () => {
     await sql`delete from pages where id = ${pageId}`.execute(db);
     await service.syncPages([pageId], false, workspaceId);
     expect((await service.search('苹果', workspaceId, true, 1)).found).toBe(0);
-    // The FK prevents orphaned stored credentials.
+    // The FK prevents orphaned language preferences.
     await sql`delete from workspaces where id = ${workspaceId}`.execute(db);
     expect(
       await db.selectFrom('workspaceSearchConfigs').selectAll().execute(),

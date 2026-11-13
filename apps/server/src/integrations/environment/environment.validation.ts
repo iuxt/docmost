@@ -10,7 +10,7 @@ import {
   ValidateIf,
   validateSync,
 } from 'class-validator';
-import { plainToInstance } from 'class-transformer';
+import { plainToInstance, Transform } from 'class-transformer';
 
 export class EnvironmentVariables {
   @IsNotEmpty()
@@ -70,6 +70,24 @@ export class EnvironmentVariables {
   )
   @ValidateIf((obj) => obj.CLOUD === 'true'.toLowerCase())
   SUBDOMAIN_HOST: string;
+
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @ValidateIf((obj) => Boolean(obj.TYPESENSE_URL || obj.TYPESENSE_API_KEY))
+  @IsString()
+  @IsUrl({
+    protocols: ['http', 'https'],
+    require_protocol: true,
+    require_tld: false,
+    allow_underscores: true,
+    disallow_auth: true,
+  })
+  TYPESENSE_URL: string;
+
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @ValidateIf((obj) => Boolean(obj.TYPESENSE_URL || obj.TYPESENSE_API_KEY))
+  @IsString()
+  @IsNotEmpty()
+  TYPESENSE_API_KEY: string;
 
   @IsOptional()
   @ValidateIf((obj) => obj.AI_DRIVER)

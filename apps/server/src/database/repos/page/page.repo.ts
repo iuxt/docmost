@@ -269,76 +269,80 @@ export class PageRepo {
   }
 
   async restorePage(pageId: string, workspaceId: string): Promise<void> {
-    // First, check if the page being restored has a deleted parent
-    const pageToRestore = await this.db
-      .selectFrom('pages')
-      .select(['id', 'parentPageId', 'spaceId'])
-      .where('id', '=', pageId)
-      .executeTakeFirst();
-
-    if (!pageToRestore) {
-      return;
-    }
-
-    // Check if the parent is also deleted
-    let shouldDetachFromParent = false;
-    if (pageToRestore.parentPageId) {
-      const parent = await this.db
+    const pageIds = await executeTx(this.db, async (trx) => {
+      const candidate = await trx
         .selectFrom('pages')
-        .select(['id', 'deletedAt', 'spaceId'])
-        .where('id', '=', pageToRestore.parentPageId)
+        .select('spaceId')
+        .where('id', '=', pageId)
+        .where('workspaceId', '=', workspaceId)
         .executeTakeFirst();
+      if (!candidate) return [];
+      await this.lockPageHierarchySpaces([candidate.spaceId], trx);
 
-      // If parent is deleted or in another space, we should detach this page from it
-      shouldDetachFromParent =
-        !parent ||
-        parent.deletedAt !== null ||
-        parent.spaceId !== pageToRestore.spaceId;
-    }
+      const pageToRestore = await trx
+        .selectFrom('pages')
+        .select(['id', 'parentPageId', 'spaceId'])
+        .where('id', '=', pageId)
+        .where('workspaceId', '=', workspaceId)
+        .where('spaceId', '=', candidate.spaceId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!pageToRestore) return [];
 
-    // Find all descendants to restore
-    const pages = await this.db
-      .withRecursive('page_descendants', (db) =>
-        db
+      let shouldDetachFromParent = false;
+      if (pageToRestore.parentPageId) {
+        const parent = await trx
           .selectFrom('pages')
-          .select(['id', 'spaceId'])
-          .where('id', '=', pageId)
-          .unionAll((exp) =>
-            exp
-              .selectFrom('pages as p')
-              .select(['p.id', 'p.spaceId'])
-              .innerJoin('page_descendants as pd', 'pd.id', 'p.parentPageId')
-              .whereRef('p.spaceId', '=', 'pd.spaceId'),
-          ),
-      )
-      .selectFrom('page_descendants')
-      .selectAll()
-      .execute();
+          .select(['id', 'deletedAt', 'spaceId'])
+          .where('id', '=', pageToRestore.parentPageId)
+          .executeTakeFirst();
+        shouldDetachFromParent =
+          !parent ||
+          parent.deletedAt !== null ||
+          parent.spaceId !== pageToRestore.spaceId;
+      }
 
-    const pageIds = pages.map((p) => p.id);
+      const pages = await trx
+        .withRecursive('page_descendants', (db) =>
+          db
+            .selectFrom('pages')
+            .select(['id', 'spaceId'])
+            .where('id', '=', pageId)
+            .unionAll((exp) =>
+              exp
+                .selectFrom('pages as p')
+                .select(['p.id', 'p.spaceId'])
+                .innerJoin('page_descendants as pd', 'pd.id', 'p.parentPageId')
+                .whereRef('p.spaceId', '=', 'pd.spaceId'),
+            ),
+        )
+        .selectFrom('page_descendants')
+        .selectAll()
+        .execute();
+      const ids = pages.map((page) => page.id);
+      if (!ids.length) return [];
 
-    // Restore all pages, but only detach the root page if its parent is deleted
-    await this.db
-      .updateTable('pages')
-      .set({ deletedById: null, deletedAt: null })
-      .where('id', 'in', pageIds)
-      .execute();
-
-    // If we need to detach the restored page from its deleted parent
-    if (shouldDetachFromParent) {
-      await executeTx(this.db, async (trx) => {
+      if (shouldDetachFromParent) {
         await this.pagePermissionRepo.copyInheritedRestriction([pageId], trx);
+      }
+      await trx
+        .updateTable('pages')
+        .set({ deletedById: null, deletedAt: null })
+        .where('id', 'in', ids)
+        .execute();
+      if (shouldDetachFromParent) {
         await trx
           .updateTable('pages')
           .set({ parentPageId: null })
           .where('id', '=', pageId)
           .execute();
-      });
-    }
-    this.eventEmitter.emit(EventName.PAGE_RESTORED, {
-      pageIds: pageIds,
-      workspaceId: workspaceId,
+      }
+      return ids;
     });
+
+    if (pageIds.length) {
+      this.eventEmitter.emit(EventName.PAGE_RESTORED, { pageIds, workspaceId });
+    }
   }
 
   async getRecentPagesInSpace(spaceId: string, pagination: PaginationOptions) {
@@ -393,7 +397,12 @@ export class PageRepo {
     });
   }
 
-  async getCreatedByPages(creatorId: string, requestingUserId: string, pagination: PaginationOptions, spaceId?: string) {
+  async getCreatedByPages(
+    creatorId: string,
+    requestingUserId: string,
+    pagination: PaginationOptions,
+    spaceId?: string,
+  ) {
     let query = this.db
       .selectFrom('pages')
       .select(this.baseFields)
@@ -540,7 +549,11 @@ export class PageRepo {
 
   async getPageAndDescendants(
     parentPageId: string,
-    opts: { includeContent: boolean; trx?: KyselyTransaction },
+    opts: {
+      includeContent: boolean;
+      includeDeleted?: boolean;
+      trx?: KyselyTransaction;
+    },
   ) {
     return dbOrTx(this.db, opts.trx)
       .withRecursive('page_hierarchy', (db) =>
@@ -563,7 +576,7 @@ export class PageRepo {
           ])
           .$if(opts?.includeContent, (qb) => qb.select('content'))
           .where('id', '=', parentPageId)
-          .where('deletedAt', 'is', null)
+          .$if(!opts.includeDeleted, (qb) => qb.where('deletedAt', 'is', null))
           .unionAll((exp) =>
             exp
               .selectFrom('pages as p')
@@ -584,7 +597,9 @@ export class PageRepo {
               ])
               .$if(opts?.includeContent, (qb) => qb.select('p.content'))
               .innerJoin('page_hierarchy as ph', 'p.parentPageId', 'ph.id')
-              .where('p.deletedAt', 'is', null)
+              .$if(!opts.includeDeleted, (qb) =>
+                qb.where('p.deletedAt', 'is', null),
+              )
               .whereRef('p.spaceId', '=', 'ph.spaceId'),
           ),
       )

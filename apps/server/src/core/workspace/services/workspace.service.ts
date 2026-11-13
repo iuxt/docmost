@@ -335,7 +335,7 @@ export class WorkspaceService {
       !(await this.typesenseConfig.isConfigured(workspaceId))
     ) {
       throw new BadRequestException(
-        'Configure Typesense in workspace settings before enabling search.',
+        'Configure TYPESENSE_URL and TYPESENSE_API_KEY on the server before enabling search.',
       );
     }
     if (updateWorkspaceDto.enforceSso) {

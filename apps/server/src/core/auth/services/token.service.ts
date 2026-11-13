@@ -42,14 +42,21 @@ export class TokenService {
     return this.jwtService.sign(payload);
   }
 
-  async generateCollabToken(user: User, workspaceId: string): Promise<string> {
+  async generateCollabToken(
+    user: User,
+    workspaceId: string,
+    sessionId: string,
+  ): Promise<string> {
     if (isUserDisabled(user)) {
       throw new ForbiddenException();
     }
 
+    if (!sessionId) throw new UnauthorizedException('Please log in again');
+
     const payload: JwtCollabPayload = {
       sub: user.id,
       workspaceId,
+      sessionId,
       type: JwtType.COLLAB,
     };
     const expiresIn = '24h';

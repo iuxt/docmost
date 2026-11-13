@@ -122,37 +122,46 @@ commands with `npm run deploy -- --dry-run`.
 ### Typesense search
 
 This fork includes an independent Typesense integration for page titles and body
-text. Workspace administrators configure the connection under **Settings →
-Workspace → General**: enter the Typesense URL reachable from the Docmost server,
-an API key with collection/document management permissions, and a language code
-(`zh` for Chinese, `en` for English). **Test connection** checks the address and
-key without saving. **Save connection** validates and saves the connection, then
-queues a backfill. Enable **Use Typesense search** to use it for that workspace.
-No Docmost environment variables or server restart are needed.
+text. Configure the shared server connection in `.env`:
 
-Connections are isolated by workspace and stored in the database. API keys are
-encrypted using the existing `APP_SECRET` and are never returned to the browser.
-Leaving the key field blank preserves the saved key. Only workspace owners and
-administrators can read or change connection settings. Existing environment-based
-connections remain supported as a fallback until a workspace saves its own settings.
+```dotenv
+TYPESENSE_URL=http://typesense:8108
+TYPESENSE_API_KEY=REPLACE_WITH_LONG_RANDOM_KEY
+```
 
-Typesense is a separate service and must already be running. For Docker Compose,
-replace `REPLACE_WITH_LONG_RANDOM_KEY` in `docker-compose.search.yml` with a strong
-key (generate one using `openssl rand -hex 32`), then run:
+Use an address reachable from the Docmost server and a key with collection and
+document management permissions. Generate a strong key with `openssl rand -hex 32`.
+Both values are required; leave both empty to use database search only. Restart or
+recreate Docmost after changing them. The supplied Compose file passes these
+variables to the Docmost container.
+
+Workspace administrators configure the language (`zh` for Chinese, `en` for English)
+under **Settings → Workspace → General**. **Test connection** checks the server's
+configured address and key without saving. **Save settings** validates the
+connection, saves the workspace language, and queues a backfill. Enable **Use
+Typesense search** to use it for that workspace. Language and enablement remain
+isolated by workspace. The address and API key are never returned to the browser
+or saved in the database.
+
+When upgrading from workspace connection settings, put the address and key in
+`.env` before restarting. The migration removes the stored addresses and encrypted
+keys while preserving workspace language preferences.
+
+Typesense is a separate service and must already be running. To start the bundled
+service with the same API key from `.env`, use:
 
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.search.yml up -d
 ```
 
-In the admin form, enter `http://typesense:8108`, the same key, and `zh`.
 The override persists the index and keeps Typesense off the host's public ports.
 Build the updated Docmost image before starting it; the upstream image does not
 include this integration.
 
 Configured workspaces are indexed in background batches on startup and reconciled
 hourly, even when database search is selected. Creates, edits, restores, and
-deletes are synchronized through the search queue. Saving a connection or enabling
-Typesense queues a backfill of existing pages. Initial indexing is asynchronous,
+deletes are synchronized through the search queue. Saving workspace search
+settings or enabling Typesense queues a backfill of existing pages. Initial indexing is asynchronous,
 so results can be incomplete until it finishes. Changing the locale builds a new
 collection; old locale collections remain available for manual cleanup.
 Typesense's [collection documentation](https://typesense.org/docs/30.1/api/collections.html)

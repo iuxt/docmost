@@ -2,48 +2,36 @@ import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { UpdateTypesenseConfigDto } from './update-typesense-config.dto';
 
-const valid = { url: 'http://typesense:8108', apiKey: 'secret', locale: 'zh' };
 const errors = (data: object) =>
-  validateSync(plainToInstance(UpdateTypesenseConfigDto, data)).map(
-    (error) => error.property,
-  );
+  validateSync(plainToInstance(UpdateTypesenseConfigDto, data));
 
-describe('Typesense settings input', () => {
-  it('accepts internal service addresses and an omitted key', () => {
-    expect(errors(valid)).toEqual([]);
-    expect(errors({ url: valid.url, locale: 'en' })).toEqual([]);
-  });
-  it.each([
-    'file:///etc/passwd',
-    'ftp://search:8108',
-    'search:8108',
-    'http://user:password@search:8108',
-  ])('rejects invalid URL %s', (url) => {
-    expect(errors({ ...valid, url })).toContain('url');
-  });
-  it.each([null, '', '   ', 123])(
-    'rejects an invalid replacement key %s',
-    (apiKey) => {
-      expect(errors({ ...valid, apiKey })).toContain('apiKey');
-    },
-  );
-  it.each([null, '', 'zh-CN', 'invalid'])(
-    'rejects an invalid language %s',
+describe('Typesense workspace language input', () => {
+  it.each(['zh', 'en'])(
+    'accepts language %s without connection credentials',
     (locale) => {
-      expect(errors({ ...valid, locale })).toContain('locale');
+      expect(errors({ locale })).toEqual([]);
     },
   );
-  it('trims input and normalizes language codes', () => {
-    const dto = plainToInstance(UpdateTypesenseConfigDto, {
-      url: ' http://search:8108 ',
-      locale: ' ZH ',
-      apiKey: ' secret ',
-    });
-    expect(dto).toMatchObject({
-      url: 'http://search:8108',
-      locale: 'zh',
-      apiKey: 'secret',
-    });
+  it.each([undefined, null, '', 'zh-CN', 'invalid', 123])(
+    'rejects invalid language %s',
+    (locale) => {
+      expect(errors({ locale }).map((error) => error.property)).toContain(
+        'locale',
+      );
+    },
+  );
+  it('trims and normalizes the language', () => {
+    const dto = plainToInstance(UpdateTypesenseConfigDto, { locale: ' ZH ' });
+    expect(dto.locale).toBe('zh');
     expect(validateSync(dto)).toEqual([]);
+  });
+  it('strips client-supplied connection credentials using the application whitelist', () => {
+    const dto = plainToInstance(UpdateTypesenseConfigDto, {
+      locale: 'en',
+      url: 'http://client:8108',
+      apiKey: 'client-secret',
+    });
+    expect(validateSync(dto, { whitelist: true })).toEqual([]);
+    expect(dto).toEqual({ locale: 'en' });
   });
 });

@@ -4,6 +4,7 @@ import {
   Hocuspocus,
   onAuthenticatePayload,
   onConfigurePayload,
+  beforeHandleMessagePayload,
 } from '@hocuspocus/server';
 import { Forbidden } from '@hocuspocus/common';
 import {
@@ -16,6 +17,7 @@ import { RedisService } from '@nestjs-labs/nestjs-ioredis';
 import type { Redis } from 'ioredis';
 import { TokenService } from '../../core/auth/services/token.service';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
+import { UserSessionRepo } from '@docmost/db/repos/session/user-session.repo';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
@@ -43,6 +45,7 @@ export class AuthenticationExtension implements Extension {
     private readonly spaceMemberRepo: SpaceMemberRepo,
     private readonly pagePermissionRepo: PagePermissionRepo,
     private readonly redisService: RedisService,
+    private readonly userSessionRepo: UserSessionRepo,
   ) {}
 
   async onConfigure({ instance }: onConfigurePayload) {
@@ -84,6 +87,13 @@ export class AuthenticationExtension implements Extension {
 
     const userId = jwtPayload.sub;
     const workspaceId = jwtPayload.workspaceId;
+    if (
+      !(await this.isSessionActive(jwtPayload.sessionId, userId, workspaceId))
+    ) {
+      throw new UnauthorizedException(
+        'Collaboration session expired or revoked',
+      );
+    }
 
     const [user, page] = await Promise.all([
       this.userRepo.findById(userId, workspaceId),
@@ -102,7 +112,9 @@ export class AuthenticationExtension implements Extension {
     const access = await this.getAccess(user, page);
 
     if (access === 'none') {
-      this.logger.warn(`User ${user.id} not authorized to access page: ${pageId}`);
+      this.logger.warn(
+        `User ${user.id} not authorized to access page: ${pageId}`,
+      );
       throw new UnauthorizedException();
     }
 
@@ -114,7 +126,35 @@ export class AuthenticationExtension implements Extension {
 
     return {
       user,
+      sessionId: jwtPayload.sessionId,
     };
+  }
+
+  async beforeHandleMessage({
+    connection,
+    documentName,
+  }: beforeHandleMessagePayload) {
+    const { user, sessionId } = connection.context;
+    const [sessionActive, page] = await Promise.all([
+      this.isSessionActive(sessionId, user.id, user.workspaceId),
+      this.pageRepo.findById(getPageId(documentName)),
+    ]);
+    if (!sessionActive || !page || page.workspaceId !== user.workspaceId) {
+      this.setConnectionAccess(connection, 'none');
+      throw new UnauthorizedException();
+    }
+    // Close the write window before the asynchronous deletion broadcast arrives.
+    if (page.deletedAt) this.setConnectionAccess(connection, 'read');
+  }
+
+  private async isSessionActive(
+    sessionId: string,
+    userId: string,
+    workspaceId: string,
+  ) {
+    if (!sessionId) return false;
+    const session = await this.userSessionRepo.findActiveById(sessionId);
+    return session?.userId === userId && session.workspaceId === workspaceId;
   }
 
   async recheckAccess({
@@ -124,10 +164,11 @@ export class AuthenticationExtension implements Extension {
     if (!this.instance?.documents.size) return;
 
     const recheckUserIds = new Set(userIds);
-    const recheckPageIds = new Set<string>();
+    const recheckPageIds = new Set<string>(pageIds);
     for (const pageId of pageIds) {
       const pages = await this.pageRepo.getPageAndDescendants(pageId, {
         includeContent: false,
+        includeDeleted: true,
       });
       pages.forEach((page) => recheckPageIds.add(page.id));
     }
@@ -160,24 +201,38 @@ export class AuthenticationExtension implements Extension {
     pageId: string,
   ): Promise<void> {
     const { id, workspaceId } = connection.context.user;
-    const [user, page] = await Promise.all([
+    const [user, page, sessionActive] = await Promise.all([
       this.userRepo.findById(id, workspaceId),
       this.pageRepo.findById(pageId),
+      this.isSessionActive(connection.context.sessionId, id, workspaceId),
     ]);
 
     let access: CollabAccess = 'none';
-    if (user && !isUserDisabled(user) && page) {
+    if (
+      sessionActive &&
+      user &&
+      !isUserDisabled(user) &&
+      page &&
+      page.workspaceId === workspaceId
+    ) {
       access = await this.getAccess(user, page);
     }
 
-    if (access === 'write' || (access === 'read' && connection.readOnly)) {
+    this.setConnectionAccess(connection, access);
+  }
+
+  private setConnectionAccess(connection: Connection, access: CollabAccess) {
+    if (
+      (access === 'write' && !connection.readOnly) ||
+      (access === 'read' && connection.readOnly)
+    ) {
       return;
     }
 
     connection.sendStateless(
       JSON.stringify({ type: 'page.permissions', access }),
     );
-    connection.readOnly = true;
+    connection.readOnly = access !== 'write';
     if (access === 'none') {
       connection.close(Forbidden);
     }

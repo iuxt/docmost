@@ -252,6 +252,7 @@ export class PageService {
     updatePageDto: UpdatePageDto,
     user: User,
   ): Promise<Page> {
+    if (page.deletedAt) throw new NotFoundException('Page not found');
     const contributors = new Set<string>(page.contributorIds);
     contributors.add(user.id);
     const contributorIds = Array.from(contributors);
@@ -266,6 +267,8 @@ export class PageService {
     );
 
     const invalidation = await executeTx(this.db, async (trx) => {
+      const current = await this.pageRepo.findById(page.id, { trx, withLock: true });
+      if (!current || current.deletedAt) throw new NotFoundException('Page not found');
       await this.pageRepo.updatePage(
         {
           title: updatePageDto.title,
@@ -847,9 +850,9 @@ export class PageService {
                   //@ts-ignore
                   node.attrs.attachmentId = newAttachmentId;
 
-                  if (node.attrs.src) {
+                  if (node.attrs.url) {
                     //@ts-ignore
-                    node.attrs.src = node.attrs.src.replace(
+                    node.attrs.url = node.attrs.url.replace(
                       attachmentId,
                       newAttachmentId,
                     );
@@ -1380,6 +1383,12 @@ export class PageService {
     workspaceId: string,
   ): Promise<void> {
     await this.pageRepo.removePage(pageId, userId, workspaceId);
+    await this.collabAccessService.recheckAccess({ pageIds: [pageId] });
+  }
+
+  async restorePage(pageId: string, workspaceId: string): Promise<void> {
+    await this.pageRepo.restorePage(pageId, workspaceId);
+    await this.collabAccessService.recheckAccess({ pageIds: [pageId] });
   }
 
   private async parseProsemirrorContent(

@@ -2,7 +2,6 @@ import {
   Alert,
   Button,
   Group,
-  PasswordInput,
   Stack,
   Switch,
   Text,
@@ -30,8 +29,6 @@ export default function WorkspaceSearchSettings() {
   const [connectionAction, setConnectionAction] = useState<
     "save" | "test" | null
   >(null);
-  const [url, setUrl] = useState("");
-  const [apiKey, setApiKey] = useState("");
   const [locale, setLocale] = useState("zh");
   const queryClient = useQueryClient();
   const settingsKey = ["typesense-settings", workspace?.id];
@@ -44,13 +41,12 @@ export default function WorkspaceSearchSettings() {
   });
   useEffect(() => {
     if (settings.data) {
-      setUrl(settings.data.url);
       setLocale(settings.data.locale);
-      setApiKey("");
     }
   }, [settings.data]);
   const enabled = workspace?.searchDriver === "typesense";
-  const configured = workspace?.typesenseConfigured === true;
+  const configured =
+    settings.data?.configured ?? workspace?.typesenseConfigured === true;
 
   const refreshSearch = () =>
     queryClient.invalidateQueries({
@@ -85,9 +81,7 @@ export default function WorkspaceSearchSettings() {
   const handleConnection = async (action: "save" | "test") => {
     setConnectionAction(action);
     const data = {
-      url: url.trim(),
       locale: locale.trim().toLowerCase(),
-      ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
     };
     try {
       if (action === "test") {
@@ -99,9 +93,11 @@ export default function WorkspaceSearchSettings() {
       } else {
         const saved = await saveTypesenseSettings(data);
         queryClient.setQueryData(settingsKey, saved);
-        setApiKey("");
         if (workspace) {
-          const updated = { ...workspace, typesenseConfigured: true };
+          const updated = {
+            ...workspace,
+            typesenseConfigured: saved.configured,
+          };
           setWorkspace(updated);
           queryClient.setQueryData(["workspace"], updated);
         }
@@ -124,9 +120,7 @@ export default function WorkspaceSearchSettings() {
   };
 
   const busy = saving || connectionAction !== null;
-  const canSubmit = Boolean(
-    url.trim() && locale.trim() && (apiKey.trim() || settings.data?.hasApiKey),
-  );
+  const canSubmit = configured && Boolean(locale.trim()) && !settings.isPending;
 
   return (
     <Stack gap="md">
@@ -143,7 +137,9 @@ export default function WorkspaceSearchSettings() {
               ? t(
                   "Existing pages are indexed in the background. Search results may be incomplete until indexing finishes.",
                 )
-              : t("Configure the Typesense connection below to enable search.")}
+              : t(
+                  "Typesense is not configured on this server. Contact your administrator.",
+                )}
           </Text>
         </div>
         <Switch
@@ -167,38 +163,15 @@ export default function WorkspaceSearchSettings() {
       )}
       <Stack gap="sm" maw={560}>
         <TextInput
-          label={t("Typesense URL")}
-          placeholder="http://typesense:8108"
-          description={t(
-            "Enter the Typesense address reachable from the Docmost server.",
-          )}
-          value={url}
-          onChange={(event) => setUrl(event.currentTarget.value)}
-          disabled={settings.isPending || settings.isError || busy}
-        />
-        <PasswordInput
-          label={t("Typesense API key")}
-          placeholder={
-            settings.data?.hasApiKey
-              ? t("Leave blank to keep the saved key")
-              : t("Enter the Typesense API key")
-          }
-          description={t(
-            "Use a key with collection and document management permissions. The key is stored encrypted.",
-          )}
-          value={apiKey}
-          onChange={(event) => setApiKey(event.currentTarget.value)}
-          autoComplete="new-password"
-          disabled={settings.isPending || settings.isError || busy}
-        />
-        <TextInput
           label={t("Typesense language")}
           description={t(
             "Use zh for Chinese or en for English. Changing the language rebuilds the index.",
           )}
           value={locale}
           onChange={(event) => setLocale(event.currentTarget.value)}
-          disabled={settings.isPending || settings.isError || busy}
+          disabled={
+            !configured || settings.isPending || settings.isError || busy
+          }
         />
         <Group>
           <Button
@@ -214,7 +187,7 @@ export default function WorkspaceSearchSettings() {
             disabled={!canSubmit || busy || settings.isError}
             onClick={() => void handleConnection("save")}
           >
-            {t("Save connection")}
+            {t("Save settings")}
           </Button>
         </Group>
       </Stack>

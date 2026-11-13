@@ -33,6 +33,7 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { validateSsoEnforcement } from './auth.util';
 import { ModuleRef } from '@nestjs/core';
 import { AuditEvent, AuditResource } from '../../common/events/audit-events';
+import { RequireSessionAuth } from '../../common/decorators/require-session-auth.decorator';
 import {
   AUDIT_SERVICE,
   IAuditService,
@@ -185,11 +186,17 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Post('collab-token')
+  @RequireSessionAuth()
   async collabToken(
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
+    @Req() req: FastifyRequest,
   ) {
-    return this.authService.getCollabToken(user, workspace.id);
+    return this.authService.getCollabToken(
+      user,
+      workspace.id,
+      (req.raw as any).sessionId,
+    );
   }
 
   @SkipThrottle({ [AUTH_THROTTLER]: true })
