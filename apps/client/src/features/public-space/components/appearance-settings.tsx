@@ -1,10 +1,4 @@
-import {
-  ColorInput,
-  Group,
-  Text,
-  Tooltip,
-  UnstyledButton,
-} from "@mantine/core";
+import { ColorInput, Group, Text, UnstyledButton } from "@mantine/core";
 import { IconColorPicker } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -17,7 +11,6 @@ import {
 import { IPublicSpaceAppearance } from "@/features/public-space/types/public-space.types.ts";
 import { usePublishSpaceMutation } from "@/features/public-space/queries/public-space-query.ts";
 import { useHasFeature } from "@/ee/hooks/use-feature.ts";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label.ts";
 import { Feature } from "@/ee/features.ts";
 import classes from "./appearance-settings.module.css";
 
@@ -33,7 +26,6 @@ export default function AppearanceSettings({
   const { t } = useTranslation();
   const publishMutation = usePublishSpaceMutation();
   const hasAppearance = useHasFeature(Feature.PUBLIC_SPACE_APPEARANCE);
-  const unavailableLabel = useFeatureUnavailableLabel();
 
   const matchedPreset = matchDocsPreset(appearance);
   const [customOpen, setCustomOpen] = useState(matchedPreset === null);
@@ -82,6 +74,8 @@ export default function AppearanceSettings({
     preset.dark,
   ]);
 
+  if (!hasAppearance) return null;
+
   return (
     <div>
       <Text size="md" mt="md">
@@ -91,48 +85,40 @@ export default function AppearanceSettings({
         {t("Choose the primary color of the public docs site.")}
       </Text>
 
-      <Tooltip
-        label={unavailableLabel}
-        disabled={hasAppearance}
-        position="top-start"
-      >
-        <div className={classes.presetRow} style={{ marginTop: 10 }}>
-          {DOCS_THEME_PRESETS.map((preset) => {
-            const selected = !customOpen && matchedPreset?.id === preset.id;
-            return (
-              <UnstyledButton
-                key={preset.id}
-                className={classes.presetCard}
-                data-selected={selected || undefined}
-                aria-pressed={selected}
-                disabled={!hasAppearance}
-                onClick={() => selectPreset(preset.id)}
-              >
-                <span
-                  className={classes.presetSwatch}
-                  style={{
-                    background: `linear-gradient(135deg, ${preset.light} 50%, ${preset.dark} 50%)`,
-                  }}
-                />
-                <Text size="xs">{t(preset.nameKey)}</Text>
-              </UnstyledButton>
-            );
-          })}
+      <div className={classes.presetRow} style={{ marginTop: 10 }}>
+        {DOCS_THEME_PRESETS.map((preset) => {
+          const selected = !customOpen && matchedPreset?.id === preset.id;
+          return (
+            <UnstyledButton
+              key={preset.id}
+              className={classes.presetCard}
+              data-selected={selected || undefined}
+              aria-pressed={selected}
+              onClick={() => selectPreset(preset.id)}
+            >
+              <span
+                className={classes.presetSwatch}
+                style={{
+                  background: `linear-gradient(135deg, ${preset.light} 50%, ${preset.dark} 50%)`,
+                }}
+              />
+              <Text size="xs">{t(preset.nameKey)}</Text>
+            </UnstyledButton>
+          );
+        })}
 
-          <UnstyledButton
-            className={classes.presetCard}
-            data-selected={customOpen || undefined}
-            aria-pressed={customOpen}
-            disabled={!hasAppearance}
-            onClick={() => setCustomOpen(true)}
-          >
-            <span className={classes.customSwatch}>
-              <IconColorPicker size={13} stroke={2} aria-hidden />
-            </span>
-            <Text size="xs">{t("Custom")}</Text>
-          </UnstyledButton>
-        </div>
-      </Tooltip>
+        <UnstyledButton
+          className={classes.presetCard}
+          data-selected={customOpen || undefined}
+          aria-pressed={customOpen}
+          onClick={() => setCustomOpen(true)}
+        >
+          <span className={classes.customSwatch}>
+            <IconColorPicker size={13} stroke={2} aria-hidden />
+          </span>
+          <Text size="xs">{t("Custom")}</Text>
+        </UnstyledButton>
+      </div>
 
       {customOpen && hasAppearance && (
         <Group grow mt="sm" align="flex-start">

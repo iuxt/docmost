@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
-import { ScrollArea, Text, Divider, Modal, UnstyledButton, Tooltip, Badge } from "@mantine/core";
+import {
+  ScrollArea,
+  Text,
+  Divider,
+  Modal,
+  UnstyledButton,
+  Badge,
+} from "@mantine/core";
 import {
   IconHome,
-  IconClock,
   IconStar,
   IconLayoutGrid,
   IconSettings,
@@ -23,7 +29,6 @@ import { CustomAvatar } from "@/components/ui/custom-avatar";
 import { AvatarIconType } from "@/features/attachments/types/attachment.types";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 
 export default function GlobalSidebar() {
   const { t } = useTranslation();
@@ -32,7 +37,6 @@ export default function GlobalSidebar() {
   const [mobileSidebarOpened] = useAtom(mobileSidebarAtom);
   const toggleMobileSidebar = useToggleSidebar(mobileSidebarAtom);
   const hasTemplates = useHasFeature(Feature.TEMPLATES);
-  const unavailableLabel = useFeatureUnavailableLabel();
   const mainNavItems = [
     { label: "Home", icon: IconHome, path: "/home" },
     { label: "Favorites", icon: IconStar, path: "/favorites" },
@@ -44,12 +48,18 @@ export default function GlobalSidebar() {
       disabled: !hasTemplates,
     },
   ];
-  const { data: favoriteSpacesData, isPending: isFavoritesPending } = useFavoritesQuery("space");
-  const favoriteSpaces = favoriteSpacesData?.pages.flatMap((p) => p.items) ?? [];
+  const { data: favoriteSpacesData, isPending: isFavoritesPending } =
+    useFavoritesQuery("space");
+  const favoriteSpaces =
+    favoriteSpacesData?.pages.flatMap((p) => p.items) ?? [];
   const sortedFavoriteSpaces = [...favoriteSpaces]
     .filter((fav) => fav.space)
     .sort((a, b) => {
-      const cmp = (a.space!.name ?? "").localeCompare(b.space!.name ?? "", undefined, { sensitivity: "base" });
+      const cmp = (a.space!.name ?? "").localeCompare(
+        b.space!.name ?? "",
+        undefined,
+        { sensitivity: "base" },
+      );
       return cmp !== 0 ? cmp : a.id.localeCompare(b.id);
     });
   const [inviteOpened, { open: openInvite, close: closeInvite }] =
@@ -69,25 +79,9 @@ export default function GlobalSidebar() {
     <div className={classes.navbar}>
       <ScrollArea w="100%" style={{ flex: 1 }}>
         <div className={classes.section}>
-          {mainNavItems.map((item) =>
-            item.disabled ? (
-              <Tooltip
-                key={item.label}
-                label={unavailableLabel}
-                position="right"
-                withArrow
-              >
-                <UnstyledButton
-                  className={classes.link}
-                  data-disabled
-                  aria-disabled="true"
-                  tabIndex={-1}
-                >
-                  <item.icon className={classes.linkIcon} stroke={2} />
-                  <span>{t(item.label)}</span>
-                </UnstyledButton>
-              </Tooltip>
-            ) : (
+          {mainNavItems
+            .filter((item) => !item.disabled)
+            .map((item) => (
               <Link
                 key={item.label}
                 className={classes.link}
@@ -99,13 +93,14 @@ export default function GlobalSidebar() {
                 <item.icon className={classes.linkIcon} stroke={2} />
                 <span>{t(item.label)}</span>
               </Link>
-            ),
-          )}
+            ))}
         </div>
 
         <Divider my="xs" />
         <div className={classes.section}>
-          <Text component="h2" className={classes.sectionHeader}>{t("Favorite spaces")}</Text>
+          <Text component="h2" className={classes.sectionHeader}>
+            {t("Favorite spaces")}
+          </Text>
           {!isFavoritesPending && sortedFavoriteSpaces.length === 0 ? (
             <Text size="xs" c="dimmed" pl="xs" py={4}>
               {t("Favorite spaces appear here")}
@@ -156,14 +151,10 @@ export default function GlobalSidebar() {
             </>
           )}
         </div>
-
       </ScrollArea>
 
       <div className={classes.bottomSection}>
-        <UnstyledButton
-          className={classes.link}
-          onClick={openInvite}
-        >
+        <UnstyledButton className={classes.link} onClick={openInvite}>
           <IconUserPlus className={classes.linkIcon} stroke={2} />
           <span>{t("Invite People")}</span>
         </UnstyledButton>

@@ -29,9 +29,15 @@ import SiemStreamingPanel from "@/ee/siem/components/siem-streaming-panel";
 import useUserRole from "@/hooks/use-user-role";
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
 
+import { useHasFeature } from "@/ee/hooks/use-feature";
+import { Feature } from "@/ee/features";
+
 type RetentionUnit = "days" | "months" | "years";
 
-function daysToRetention(days: number): { amount: number; unit: RetentionUnit } {
+function daysToRetention(days: number): {
+  amount: number;
+  unit: RetentionUnit;
+} {
   if (days >= 365 && days % 365 === 0) {
     return { amount: days / 365, unit: "years" };
   }
@@ -50,6 +56,7 @@ function retentionToDays(amount: number, unit: RetentionUnit): number {
 export default function AuditLogs() {
   const { t } = useTranslation();
   const { isOwner } = useUserRole();
+  const hasSiem = useHasFeature(Feature.SIEM);
   const { cursor, goNext, goPrev, resetCursor } = useCursorPaginate();
   const location = useLocation();
   const navigate = useNavigate();
@@ -62,8 +69,12 @@ export default function AuditLogs() {
 
   const currentDays = retentionData?.retentionDays ?? 365;
   const parsed = daysToRetention(currentDays);
-  const [retentionAmount, setRetentionAmount] = useState<number | string>(parsed.amount);
-  const [retentionUnit, setRetentionUnit] = useState<RetentionUnit>(parsed.unit);
+  const [retentionAmount, setRetentionAmount] = useState<number | string>(
+    parsed.amount,
+  );
+  const [retentionUnit, setRetentionUnit] = useState<RetentionUnit>(
+    parsed.unit,
+  );
 
   useEffect(() => {
     if (retentionData) {
@@ -90,7 +101,8 @@ export default function AuditLogs() {
 
   const { data, isLoading } = useAuditLogsQuery(params);
 
-  const activeTab = location.pathname.endsWith("/siem") ? "siem" : "audit";
+  const activeTab =
+    hasSiem && location.pathname.endsWith("/siem") ? "siem" : "audit";
 
   if (!isOwner) {
     return null;
@@ -120,9 +132,11 @@ export default function AuditLogs() {
           <Tabs.Tab fw={500} value="audit">
             {t("Audit logs")}
           </Tabs.Tab>
-          <Tabs.Tab fw={500} value="siem">
-            {t("SIEM")}
-          </Tabs.Tab>
+          {hasSiem && (
+            <Tabs.Tab fw={500} value="siem">
+              {t("SIEM")}
+            </Tabs.Tab>
+          )}
         </Tabs.List>
 
         <Tabs.Panel value="audit" pt="md">
@@ -157,7 +171,12 @@ export default function AuditLogs() {
             >
               <Popover.Target>
                 <Tooltip label={t("Audit settings")}>
-                  <ActionIcon variant="default" size="input-sm" ml="auto" onClick={() => setSettingsOpen((o) => !o)}>
+                  <ActionIcon
+                    variant="default"
+                    size="input-sm"
+                    ml="auto"
+                    onClick={() => setSettingsOpen((o) => !o)}
+                  >
                     <IconSettings size={16} />
                   </ActionIcon>
                 </Tooltip>
@@ -186,7 +205,11 @@ export default function AuditLogs() {
                     ]}
                     value={retentionUnit}
                     onChange={(value) => {
-                      if (value === "days" || value === "months" || value === "years") {
+                      if (
+                        value === "days" ||
+                        value === "months" ||
+                        value === "years"
+                      ) {
                         setRetentionUnit(value);
                       }
                     }}
@@ -209,7 +232,10 @@ export default function AuditLogs() {
                   <Button
                     size="xs"
                     onClick={() => {
-                      const num = typeof retentionAmount === "number" ? retentionAmount : 1;
+                      const num =
+                        typeof retentionAmount === "number"
+                          ? retentionAmount
+                          : 1;
                       const clamped = Math.max(1, num);
                       setRetentionAmount(clamped);
                       const days = retentionToDays(clamped, retentionUnit);
@@ -241,9 +267,11 @@ export default function AuditLogs() {
           )}
         </Tabs.Panel>
 
-        <Tabs.Panel value="siem" pt="md">
-          <SiemStreamingPanel />
-        </Tabs.Panel>
+        {hasSiem && (
+          <Tabs.Panel value="siem" pt="md">
+            <SiemStreamingPanel />
+          </Tabs.Panel>
+        )}
       </Tabs>
     </>
   );

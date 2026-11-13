@@ -6,8 +6,6 @@ import {
   Select,
   Switch,
   Divider,
-  Tooltip,
-  Badge,
 } from "@mantine/core";
 import {
   exportPage,
@@ -20,7 +18,6 @@ import { exportSpace } from "@/features/space/services/space-service";
 import { useTranslation } from "react-i18next";
 import { Feature } from "@/ee/features";
 import { useHasFeature } from "@/ee/hooks/use-feature";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 
 interface ExportModalProps {
   id: string;
@@ -40,7 +37,6 @@ export default function ExportModal({
   const [includeAttachments, setIncludeAttachments] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const { t } = useTranslation();
-  const unavailableLabel = useFeatureUnavailableLabel();
   const isDocx = format === ExportFormat.Docx;
   const hasDocxExport = useHasFeature(Feature.DOCX_EXPORT);
   const blockedByFeature = isDocx && !hasDocxExport;
@@ -164,16 +160,15 @@ export default function ExportModal({
             <Button onClick={onClose} variant="default">
               {t("Cancel")}
             </Button>
-            <Tooltip label={unavailableLabel} disabled={!blockedByFeature} withArrow>
-              <Button
-                onClick={handleExport}
-                loading={isExporting}
-                disabled={blockedByFeature}
-                data-disabled={blockedByFeature || undefined}
-              >
-                {t("Export")}
-              </Button>
-            </Tooltip>
+
+            <Button
+              onClick={handleExport}
+              loading={isExporting}
+              disabled={blockedByFeature}
+              data-disabled={blockedByFeature || undefined}
+            >
+              {t("Export")}
+            </Button>
           </Group>
         </Modal.Body>
       </Modal.Content>
@@ -198,8 +193,8 @@ function ExportFormatSelection({
   const data = [
     { value: "markdown", label: "Markdown" },
     { value: "html", label: "HTML" },
-    ...(includeDocx
-      ? [{ value: "docx", label: "Word (.docx)", disabled: !hasDocxExport }]
+    ...(includeDocx && hasDocxExport
+      ? [{ value: "docx", label: "Word (.docx)" }]
       : []),
   ];
 
@@ -213,20 +208,6 @@ function ExportFormatSelection({
       allowDeselect={false}
       withCheckIcon={false}
       aria-label={t("Select export format")}
-      renderOption={({ option }) =>
-        option.value === "docx" && !hasDocxExport ? (
-          <div>
-            <Text size="sm" c="dimmed">
-              {option.label}
-            </Text>
-            <Badge size="xs" mt={4}>
-              {t("Enterprise")}
-            </Badge>
-          </div>
-        ) : (
-          <Text size="sm">{option.label}</Text>
-        )
-      }
     />
   );
 }

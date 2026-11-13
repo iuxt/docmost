@@ -4,7 +4,7 @@ import { EventName } from '../../common/events/event.contants';
 import { InjectQueue } from '@nestjs/bullmq';
 import { QueueJob, QueueName } from '../../integrations/queue/constants';
 import { Queue } from 'bullmq';
-import { EnvironmentService } from '../../integrations/environment/environment.service';
+import { TypesenseConfigService } from '../../integrations/search/typesense-config.service';
 
 export class SpaceEvent {
   spaceId: string;
@@ -16,7 +16,7 @@ export class SpaceListener {
   private readonly logger = new Logger(SpaceListener.name);
 
   constructor(
-    private readonly environmentService: EnvironmentService,
+    private readonly typesenseConfig: TypesenseConfigService,
     @InjectQueue(QueueName.SEARCH_QUEUE) private searchQueue: Queue,
     @InjectQueue(QueueName.AI_QUEUE) private aiQueue: Queue,
   ) {}
@@ -24,14 +24,17 @@ export class SpaceListener {
   @OnEvent(EventName.SPACE_DELETED)
   async handleSpaceDeleted(event: SpaceEvent) {
     const { spaceId, workspaceId } = event;
-    if (this.isTypesenseConfigured()) {
-      await this.searchQueue.add(QueueJob.SPACE_DELETED, { spaceId });
+    if (await this.isTypesenseConfigured(event.workspaceId)) {
+      await this.searchQueue.add(QueueJob.SPACE_DELETED, {
+        spaceId,
+        workspaceId,
+      });
     }
 
     await this.aiQueue.add(QueueJob.SPACE_DELETED, { spaceId, workspaceId });
   }
 
-  isTypesenseConfigured(): boolean {
-    return this.environmentService.isTypesenseConfigured();
+  isTypesenseConfigured(workspaceId: string): Promise<boolean> {
+    return this.typesenseConfig.isConfigured(workspaceId);
   }
 }

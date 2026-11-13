@@ -1,3 +1,4 @@
+import { TypesenseConfigService } from '../../integrations/search/typesense-config.service';
 import {
   Body,
   Controller,
@@ -23,6 +24,7 @@ export class UserController {
     private readonly userService: UserService,
     private readonly workspaceRepo: WorkspaceRepo,
     private readonly environmentService: EnvironmentService,
+    private readonly typesenseConfig: TypesenseConfigService,
   ) {}
 
   @HttpCode(HttpStatus.OK)
@@ -40,7 +42,7 @@ export class UserController {
       ...workspace,
       memberCount,
       searchDriver: this.environmentService.getSearchDriver(workspace),
-      typesenseConfigured: this.environmentService.isTypesenseConfigured(),
+      typesenseConfigured: await this.typesenseConfig.isConfigured(workspace.id),
     };
 
     return { user: authUser, workspace: workspaceInfo };

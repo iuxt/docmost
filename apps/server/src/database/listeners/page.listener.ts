@@ -4,7 +4,7 @@ import { EventName } from '../../common/events/event.contants';
 import { InjectQueue } from '@nestjs/bullmq';
 import { QueueJob, QueueName } from '../../integrations/queue/constants';
 import { Queue } from 'bullmq';
-import { EnvironmentService } from '../../integrations/environment/environment.service';
+import { TypesenseConfigService } from '../../integrations/search/typesense-config.service';
 
 export class PageEvent {
   pageIds: string[];
@@ -16,7 +16,7 @@ export class PageListener {
   private readonly logger = new Logger(PageListener.name);
 
   constructor(
-    private readonly environmentService: EnvironmentService,
+    private readonly typesenseConfig: TypesenseConfigService,
     @InjectQueue(QueueName.SEARCH_QUEUE) private searchQueue: Queue,
     @InjectQueue(QueueName.AI_QUEUE) private aiQueue: Queue,
   ) {}
@@ -24,10 +24,10 @@ export class PageListener {
   @OnEvent(EventName.PAGE_CREATED)
   async handlePageCreated(event: PageEvent) {
     const { pageIds, workspaceId } = event;
-    if (this.isTypesenseConfigured()) {
+    if (await this.isTypesenseConfigured(event.workspaceId)) {
       await this.searchQueue.add(
         QueueJob.PAGE_CREATED,
-        { pageIds },
+        { pageIds, workspaceId: event.workspaceId },
         {
           delay: 1000,
           attempts: 5,
@@ -44,10 +44,10 @@ export class PageListener {
 
     await this.searchQueue.add(
       QueueJob.PAGE_UPDATED,
-      { pageIds },
+      { pageIds, workspaceId: event.workspaceId },
       {
         // Updates may be emitted before the surrounding transaction commits.
-        delay: this.isTypesenseConfigured() ? 1000 : 0,
+        delay: 1000,
       },
     );
   }
@@ -55,8 +55,11 @@ export class PageListener {
   @OnEvent(EventName.PAGE_DELETED)
   async handlePageDeleted(event: PageEvent) {
     const { pageIds, workspaceId } = event;
-    if (this.isTypesenseConfigured()) {
-      await this.searchQueue.add(QueueJob.PAGE_DELETED, { pageIds });
+    if (await this.isTypesenseConfigured(event.workspaceId)) {
+      await this.searchQueue.add(QueueJob.PAGE_DELETED, {
+        pageIds,
+        workspaceId: event.workspaceId,
+      });
     }
 
     await this.aiQueue.add(QueueJob.PAGE_DELETED, { pageIds, workspaceId });
@@ -66,8 +69,11 @@ export class PageListener {
   async handlePageSoftDeleted(event: PageEvent) {
     const { pageIds, workspaceId } = event;
 
-    if (this.isTypesenseConfigured()) {
-      await this.searchQueue.add(QueueJob.PAGE_SOFT_DELETED, { pageIds });
+    if (await this.isTypesenseConfigured(event.workspaceId)) {
+      await this.searchQueue.add(QueueJob.PAGE_SOFT_DELETED, {
+        pageIds,
+        workspaceId: event.workspaceId,
+      });
     }
 
     await this.aiQueue.add(QueueJob.PAGE_SOFT_DELETED, {
@@ -79,14 +85,17 @@ export class PageListener {
   @OnEvent(EventName.PAGE_RESTORED)
   async handlePageRestored(event: PageEvent) {
     const { pageIds, workspaceId } = event;
-    if (this.isTypesenseConfigured()) {
-      await this.searchQueue.add(QueueJob.PAGE_RESTORED, { pageIds });
+    if (await this.isTypesenseConfigured(event.workspaceId)) {
+      await this.searchQueue.add(QueueJob.PAGE_RESTORED, {
+        pageIds,
+        workspaceId: event.workspaceId,
+      });
     }
 
     await this.aiQueue.add(QueueJob.PAGE_RESTORED, { pageIds, workspaceId });
   }
 
-  isTypesenseConfigured(): boolean {
-    return this.environmentService.isTypesenseConfigured();
+  isTypesenseConfigured(workspaceId: string): Promise<boolean> {
+    return this.typesenseConfig.isConfigured(workspaceId);
   }
 }

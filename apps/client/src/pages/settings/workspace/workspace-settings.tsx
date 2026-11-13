@@ -13,8 +13,13 @@ import AllowPublicSpaces from "@/features/workspace/components/settings/componen
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
 import WorkspaceSearchSettings from "@/features/workspace/components/settings/components/workspace-search-settings.tsx";
 
+import { useHasFeature } from "@/ee/hooks/use-feature";
+import { Feature } from "@/ee/features";
+
 export default function WorkspaceSettings() {
   const { t } = useTranslation();
+  const hasTemplates = useHasFeature(Feature.TEMPLATES);
+  const hasPersonalSpaces = useHasFeature(Feature.PERSONAL_SPACES);
   return (
     <>
       <DocumentTitle title="Workspace Settings" />
@@ -25,11 +30,19 @@ export default function WorkspaceSettings() {
       <Divider my="md" />
       <WorkspaceSearchSettings />
 
-      <Divider my="md" />
-      <AllowMemberTemplates />
+      {hasTemplates && (
+        <>
+          <Divider my="md" />
+          <AllowMemberTemplates />
+        </>
+      )}
 
-      <Divider my="md" />
-      <PersonalSpacesSetting />
+      {hasPersonalSpaces && (
+        <>
+          <Divider my="md" />
+          <PersonalSpacesSetting />
+        </>
+      )}
 
       {isBetaPublicSpaces() && (
         <>

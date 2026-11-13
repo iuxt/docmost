@@ -58,7 +58,6 @@ const TemplatePickerModal = React.lazy(
   () => import("@/ee/template/components/template-picker-modal"),
 );
 import { useHasFeature } from "@/ee/hooks/use-feature";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 import { Feature } from "@/ee/features";
 import { ErrorBoundary } from "react-error-boundary";
 
@@ -261,7 +260,6 @@ function SpaceMenu({
     { open: openTemplatePicker, close: closeTemplatePicker },
   ] = useDisclosure(false);
   const hasTemplates = useHasFeature(Feature.TEMPLATES);
-  const unavailableLabel = useFeatureUnavailableLabel();
 
   const { data: watchStatus } = useSpaceWatchStatusQuery(spaceId);
   const watchMutation = useWatchSpaceMutation();
@@ -331,28 +329,20 @@ function SpaceMenu({
             {isWatching ? t("Stop watching space") : t("Watch space")}
           </Menu.Item>
 
-          {canManagePages && (
+          {canManagePages && hasTemplates && (
             <>
               <Menu.Divider />
-              <Tooltip
-                label={unavailableLabel}
-                disabled={hasTemplates}
-                position="right"
-                withArrow
+
+              <Menu.Item
+                onClick={openTemplatePicker}
+                leftSection={<IconTemplate size={16} />}
               >
-                <Menu.Item
-                  onClick={hasTemplates ? openTemplatePicker : undefined}
-                  leftSection={<IconTemplate size={16} />}
-                  data-disabled={!hasTemplates || undefined}
-                  aria-disabled={!hasTemplates || undefined}
-                >
-                  {t("Templates")}
-                </Menu.Item>
-              </Tooltip>
+                {t("Templates")}
+              </Menu.Item>
             </>
           )}
 
-          {canManagePages && (
+          {canManagePages && hasTemplates && (
             <>
               <Menu.Divider />
 

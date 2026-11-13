@@ -1,11 +1,10 @@
-import { Group, Text, Switch, Tooltip } from "@mantine/core";
+import { Group, Text, Switch } from "@mantine/core";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ISpace } from "@/features/space/types/space.types.ts";
 import { useUpdateSpaceMutation } from "@/features/space/queries/space-query.ts";
 import { useHasFeature } from "@/ee/hooks/use-feature.ts";
 import { Feature } from "@/ee/features.ts";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label.ts";
 
 type SpaceViewerCommentsToggleProps = {
   space: ISpace;
@@ -16,7 +15,6 @@ export default function SpaceViewerCommentsToggle({
 }: SpaceViewerCommentsToggleProps) {
   const { t } = useTranslation();
   const hasViewerComments = useHasFeature(Feature.VIEWER_COMMENTS);
-  const unavailableLabel = useFeatureUnavailableLabel();
   const isDisabled = !hasViewerComments;
   const [checked, setChecked] = useState(
     space.settings?.comments?.allowViewerComments === true,
@@ -36,6 +34,8 @@ export default function SpaceViewerCommentsToggle({
     }
   };
 
+  if (!hasViewerComments) return null;
+
   return (
     <Group justify="space-between" wrap="nowrap" gap="xl">
       <div>
@@ -44,19 +44,14 @@ export default function SpaceViewerCommentsToggle({
           {t("Allow viewers to add comments on pages in this space.")}
         </Text>
       </div>
-      <Tooltip
-        label={unavailableLabel}
-        disabled={!isDisabled}
-        refProp="rootRef"
-      >
-        <Switch
-          checked={checked}
-          onChange={handleChange}
-          disabled={isDisabled}
-          size={"xs"}
-          aria-label={t("Toggle viewer comments")}
-        />
-      </Tooltip>
+
+      <Switch
+        checked={checked}
+        onChange={handleChange}
+        disabled={isDisabled}
+        size={"xs"}
+        aria-label={t("Toggle viewer comments")}
+      />
     </Group>
   );
 }

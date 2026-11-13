@@ -1,4 +1,4 @@
-import { TypesenseService } from './typesense.service';
+import { TypesenseClient } from './typesense.client';
 import { QueueJob } from '../../integrations/queue/constants';
 
 const livePage = {
@@ -25,10 +25,15 @@ function setup(rows: any[] = []) {
     getTypesenseApiKey: () => 'server-secret',
     getTypesenseLocale: () => 'zh',
   };
-  const service = new TypesenseService(
-    environment as any,
+  const service = new TypesenseClient(
+    {
+      url: environment.getTypesenseUrl(),
+      apiKey: environment.getTypesenseApiKey(),
+      locale: environment.getTypesenseLocale(),
+    },
     db as any,
     queue as any,
+    livePage.workspaceId,
   );
   return { service, qb, queue, environment };
 }
@@ -81,7 +86,9 @@ describe('TypesenseService', () => {
       .mockResolvedValueOnce(new Response('{"success":true}\n'));
     await service.syncPages([livePage.id, deletedId]);
     const removeUrl = fetchMock.mock.calls[1][0] as URL;
-    expect(removeUrl.searchParams.get('filter_by')).toBe(`id:=[${deletedId}]`);
+    expect(removeUrl.searchParams.get('filter_by')).toBe(
+      `workspaceId:=${livePage.workspaceId} && (id:=[${deletedId}])`,
+    );
     const upsert = fetchMock.mock.calls[2];
     expect((upsert[0] as URL).searchParams.get('action')).toBe('upsert');
     expect(JSON.parse(upsert[1].body)).toEqual({
@@ -135,25 +142,6 @@ describe('TypesenseService', () => {
     expect(url.searchParams.get('include_fields')).toBe('id');
   });
 
-  it('queues startup backfill and hourly reconciliation whenever Typesense is configured', async () => {
-    const { service, queue, environment } = setup();
-    environment.isTypesenseConfigured.mockReturnValue(false);
-    await service.onApplicationBootstrap();
-    expect(queue.add).not.toHaveBeenCalled();
-    environment.isTypesenseConfigured.mockReturnValue(true);
-    await service.onApplicationBootstrap();
-    expect(queue.add).toHaveBeenCalledWith(
-      QueueJob.SEARCH_INDEX_PAGES,
-      {},
-      expect.objectContaining({ attempts: 5 }),
-    );
-    expect(queue.upsertJobScheduler).toHaveBeenCalledWith(
-      'typesense-reconcile',
-      { every: 3600000 },
-      expect.any(Object),
-    );
-  });
-
   it('keeps workspace-scoped backfill jobs scoped across batches', async () => {
     const rows = Array.from({ length: 250 }, () => ({ id: livePage.id }));
     const { service, qb, queue } = setup(rows);
@@ -163,7 +151,7 @@ describe('TypesenseService', () => {
     });
     jest.spyOn(service, 'syncPages').mockResolvedValue();
 
-    await service.reindexBatch(deletedId, livePage.workspaceId);
+    await service.reindexBatch(deletedId);
 
     expect(qb.where).toHaveBeenCalledWith(
       'workspaceId',

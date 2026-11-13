@@ -1,20 +1,8 @@
-import {
-  Group,
-  Text,
-  Badge,
-  Button,
-  Box,
-  Stack,
-  Tooltip,
-} from "@mantine/core";
+import { Group, Text, Button, Box, Stack } from "@mantine/core";
 import { useTranslation } from "react-i18next";
-import {
-  IntegrationDefinition,
-  Integration,
-} from "../types/integration.types";
+import { IntegrationDefinition, Integration } from "../types/integration.types";
 import { getIntegrationIcon } from "./integration-icons";
 import { useHasFeature } from "@/ee/hooks/use-feature";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 
 type IntegrationRowProps = {
   definition: IntegrationDefinition;
@@ -33,7 +21,8 @@ export default function IntegrationRow({
   const isInstalled = !!installation;
   const hasAccess = useHasFeature(definition.requiresFeature ?? "");
   const locked = !!definition.requiresFeature && !hasAccess;
-  const unavailableLabel = useFeatureUnavailableLabel();
+
+  if (locked) return null;
 
   return (
     <Box
@@ -51,11 +40,6 @@ export default function IntegrationRow({
               <Text size="sm" fw={500}>
                 {definition.name}
               </Text>
-              {locked && (
-                <Badge size="xs" variant="light" color="violet">
-                  {t("Unavailable")}
-                </Badge>
-              )}
             </Group>
             <Text size="xs" c="dimmed" truncate>
               {definition.description}
@@ -73,16 +57,13 @@ export default function IntegrationRow({
               {t("Uninstall")}
             </Button>
           ) : (
-            <Tooltip label={unavailableLabel} disabled={!locked}>
-              <Button
-                size="xs"
-                variant="light"
-                disabled={locked}
-                onClick={() => onInstall(definition.type)}
-              >
-                {t("Install")}
-              </Button>
-            </Tooltip>
+            <Button
+              size="xs"
+              variant="light"
+              onClick={() => onInstall(definition.type)}
+            >
+              {t("Install")}
+            </Button>
           )}
         </Group>
       </Group>

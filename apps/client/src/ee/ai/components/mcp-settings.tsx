@@ -1,6 +1,5 @@
 import {
   Anchor,
-  Badge,
   Group,
   List,
   Text,
@@ -9,7 +8,6 @@ import {
   ActionIcon,
   Tooltip,
   Stack,
-  Alert,
 } from "@mantine/core";
 import { useAtom } from "jotai";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
@@ -19,9 +17,8 @@ import { updateWorkspace } from "@/features/workspace/services/workspace-service
 import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 import { getAppUrl } from "@/lib/config.ts";
-import { IconCheck, IconCopy, IconInfoCircle } from "@tabler/icons-react";
+import { IconCheck, IconCopy } from "@tabler/icons-react";
 import { CopyButton } from "@/components/common/copy-button.tsx";
 
 export default function McpSettings() {
@@ -29,7 +26,6 @@ export default function McpSettings() {
   const [workspace, setWorkspace] = useAtom(workspaceAtom);
   const [checked, setChecked] = useState(workspace?.settings?.ai?.mcp);
   const hasAccess = useHasFeature(Feature.MCP);
-  const unavailableLabel = useFeatureUnavailableLabel();
 
   const mcpUrl = `${getAppUrl()}/mcp`;
 
@@ -47,14 +43,10 @@ export default function McpSettings() {
     }
   };
 
+  if (!hasAccess) return null;
+
   return (
     <Stack gap="lg">
-      {!hasAccess && (
-        <Alert icon={<IconInfoCircle />} title={unavailableLabel} color="blue">
-          {t("MCP is not available on this instance.")}
-        </Alert>
-      )}
-
       <Group justify="space-between" wrap="nowrap" gap="xl">
         <div>
           <Text size="md">{t("Model Context Protocol (MCP)")}</Text>
@@ -65,19 +57,19 @@ export default function McpSettings() {
             <Trans
               i18nKey="View the <anchor>MCP documentation</anchor>."
               components={{
-                anchor: <Anchor href="https://docmost.com/docs/user-guide/mcp" target="_blank" size="sm" />,
+                anchor: (
+                  <Anchor
+                    href="https://docmost.com/docs/user-guide/mcp"
+                    target="_blank"
+                    size="sm"
+                  />
+                ),
               }}
             />
           </Text>
         </div>
 
-        <Tooltip label={unavailableLabel} disabled={hasAccess} refProp="rootRef">
-          <Switch
-            defaultChecked={checked}
-            onChange={handleChange}
-            disabled={!hasAccess}
-          />
-        </Tooltip>
+        <Switch defaultChecked={checked} onChange={handleChange} />
       </Group>
 
       {checked && (
@@ -157,14 +149,17 @@ export default function McpSettings() {
 function McpEnforceOauthSetting() {
   const { t } = useTranslation();
   const [workspace, setWorkspace] = useAtom(workspaceAtom);
-  const [checked, setChecked] = useState(workspace?.settings?.ai?.enforceMcpOauth);
+  const [checked, setChecked] = useState(
+    workspace?.settings?.ai?.enforceMcpOauth,
+  );
   const hasAccess = useHasFeature(Feature.MCP_CONTROLS);
-  const unavailableLabel = useFeatureUnavailableLabel();
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.currentTarget.checked;
     try {
-      const updatedWorkspace = await updateWorkspace({ enforceMcpOauth: value });
+      const updatedWorkspace = await updateWorkspace({
+        enforceMcpOauth: value,
+      });
       setChecked(value);
       setWorkspace(updatedWorkspace);
     } catch (err) {
@@ -175,6 +170,8 @@ function McpEnforceOauthSetting() {
     }
   };
 
+  if (!hasAccess) return null;
+
   return (
     <Group justify="space-between" wrap="nowrap" gap="xl" mt="md">
       <div>
@@ -182,11 +179,6 @@ function McpEnforceOauthSetting() {
           <Text size="sm" fw={500}>
             {t("Enforce OAuth")}
           </Text>
-          {!hasAccess && (
-            <Badge variant="light" size="sm" radius="sm">
-              {t("Enterprise")}
-            </Badge>
-          )}
         </Group>
         <Text size="sm" c="dimmed">
           {t(
@@ -195,14 +187,11 @@ function McpEnforceOauthSetting() {
         </Text>
       </div>
 
-      <Tooltip label={unavailableLabel} disabled={hasAccess} refProp="rootRef">
-        <Switch
-          defaultChecked={checked}
-          onChange={handleChange}
-          disabled={!hasAccess}
-          aria-label={t("Toggle enforce OAuth for MCP")}
-        />
-      </Tooltip>
+      <Switch
+        defaultChecked={checked}
+        onChange={handleChange}
+        aria-label={t("Toggle enforce OAuth for MCP")}
+      />
     </Group>
   );
 }

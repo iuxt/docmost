@@ -45,6 +45,11 @@ export default function Security() {
   const { isAdmin } = useUserRole();
   const hasCustomSso = useHasFeature(Feature.SSO_CUSTOM);
   const hasGoogleSso = useHasFeature(Feature.SSO_GOOGLE);
+  const hasMfa = useHasFeature(Feature.MFA);
+  const hasSharingControls = useHasFeature(Feature.SHARING_CONTROLS);
+  const hasRetention = useHasFeature(Feature.RETENTION);
+  const hasSecurity = useHasFeature(Feature.SECURITY_SETTINGS);
+  const hasSso = hasCustomSso || hasGoogleSso;
   const hasScim = useHasFeature(Feature.SCIM);
   const [workspace] = useAtom(workspaceAtom);
   const isScimEnabled = workspace?.isScimEnabled ?? false;
@@ -60,7 +65,7 @@ export default function Security() {
   const [updateTarget, setUpdateTarget] = useState<IScimToken | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<IScimToken | null>(null);
 
-  if (!isAdmin) {
+  if (!isAdmin || !hasSecurity) {
     return null;
   }
 
@@ -69,22 +74,32 @@ export default function Security() {
       <DocumentTitle title="Security" />
       <SettingsTitle title={t("Security")} />
 
-      <EnforceMfa />
+      {hasMfa && (
+        <>
+          <EnforceMfa />
+          <Divider my="lg" />
+        </>
+      )}
 
-      <Divider my="lg" />
+      {hasSharingControls && (
+        <>
+          <DisablePublicSharing />
+          <Divider my="lg" />
+        </>
+      )}
 
-      <DisablePublicSharing />
-      <Divider my="lg" />
+      {hasRetention && <TrashRetention />}
 
-      <TrashRetention />
-      <Divider my="lg" />
+      {hasSso && (
+        <>
+          <Divider my="lg" />
+          <Title order={4} my="lg">
+            {t("Single sign-on (SSO)")}
+          </Title>
 
-      <Title order={4} my="lg">
-        {t("Single sign-on (SSO)")}
-      </Title>
-
-      <EnforceSso />
-      <Divider my="lg" />
+          {hasCustomSso && <EnforceSso />}
+        </>
+      )}
 
       {(isCloud() || hasCustomSso) && (
         <>

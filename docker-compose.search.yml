@@ -5,17 +5,11 @@ services:
     depends_on:
       typesense:
         condition: service_healthy
-    environment:
-      SEARCH_DRIVER: typesense
-      TYPESENSE_URL: http://typesense:8108
-      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:?Set TYPESENSE_API_KEY in .env}
-      TYPESENSE_LOCALE: ${TYPESENSE_LOCALE:-zh}
 
   typesense:
     image: typesense/typesense:30.1
-    environment:
-      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:?Set TYPESENSE_API_KEY in .env}
-      TYPESENSE_DATA_DIR: /data
+    # Enter this same key in Settings → Workspace → General after startup.
+    command: ["--data-dir=/data", "--api-key=REPLACE_WITH_LONG_RANDOM_KEY"]
     restart: unless-stopped
     volumes:
       - typesense_data:/data

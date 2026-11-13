@@ -1,4 +1,4 @@
-import { Group, Text, Switch, Tooltip } from "@mantine/core";
+import { Group, Text, Switch } from "@mantine/core";
 import { useAtom } from "jotai";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
 import { useState } from "react";
@@ -7,10 +7,12 @@ import { updateWorkspace } from "@/features/workspace/services/workspace-service
 import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label.ts";
 
 export default function PersonalSpacesSetting() {
+  const hasFeature = useHasFeature(Feature.PERSONAL_SPACES);
   const { t } = useTranslation();
+
+  if (!hasFeature) return null;
 
   return (
     <Group justify="space-between" wrap="nowrap" gap="xl">
@@ -33,7 +35,6 @@ function PersonalSpacesToggle() {
     workspace?.settings?.spaces?.allowPersonal === true,
   );
   const hasPersonalSpaces = useHasFeature(Feature.PERSONAL_SPACES);
-  const unavailableLabel = useFeatureUnavailableLabel();
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.currentTarget.checked;
@@ -51,14 +52,13 @@ function PersonalSpacesToggle() {
     }
   };
 
+  if (!hasPersonalSpaces) return null;
+
   return (
-    <Tooltip label={unavailableLabel} disabled={hasPersonalSpaces} refProp="rootRef">
-      <Switch
-        checked={checked}
-        onChange={handleChange}
-        disabled={!hasPersonalSpaces}
-        aria-label={t("Toggle allow personal spaces")}
-      />
-    </Tooltip>
+    <Switch
+      checked={checked}
+      onChange={handleChange}
+      aria-label={t("Toggle allow personal spaces")}
+    />
   );
 }

@@ -1,4 +1,4 @@
-import { TypesenseService } from './typesense.service';
+import { TypesenseClient } from './typesense.client';
 
 // Run against a disposable Typesense instance, never a production collection:
 // TYPESENSE_TEST_URL=http://127.0.0.1:18108 TYPESENSE_TEST_API_KEY=... pnpm --filter server test --runInBand typesense.integration
@@ -41,17 +41,34 @@ describeIntegration('Typesense live integration', () => {
   const qb: any = {};
   for (const name of ['select', 'where']) qb[name] = () => qb;
   qb.execute = async () => pages;
-  const service = new TypesenseService(
+  const service = new TypesenseClient(
     {
-      getTypesenseUrl: () => process.env.TYPESENSE_TEST_URL,
-      getTypesenseApiKey: () => process.env.TYPESENSE_TEST_API_KEY,
-      getTypesenseLocale: () => 'zh',
+      url: process.env.TYPESENSE_TEST_URL,
+      apiKey: process.env.TYPESENSE_TEST_API_KEY,
+      locale: 'zh',
     } as any,
     { selectFrom: () => qb } as any,
     {} as any,
+    workspaceId,
+  );
+
+  // Chinese tokenization and English typo matching use their respective locales.
+  const englishService = new TypesenseClient(
+    {
+      url: process.env.TYPESENSE_TEST_URL,
+      apiKey: process.env.TYPESENSE_TEST_API_KEY,
+      locale: 'en',
+    },
+    { selectFrom: () => qb } as any,
+    {} as any,
+    workspaceId,
   );
 
   afterAll(async () => {
+    await englishService.request(
+      `collections/${englishService.collectionName}`,
+      { method: 'DELETE' },
+    );
     await service.request(`collections/${service.collectionName}`, {
       method: 'DELETE',
     });
@@ -66,7 +83,13 @@ describeIntegration('Typesense live integration', () => {
     ]);
     const titleOnly = await service.search('中文', workspaceId, true, 1);
     expect(titleOnly.hits.map((hit) => hit.document.id)).toEqual([firstId]);
-    const typo = await service.search('colaboration', workspaceId, false, 1);
+    await englishService.syncPages(pages.map((page) => page.id));
+    const typo = await englishService.search(
+      'colaboration',
+      workspaceId,
+      false,
+      1,
+    );
     expect(typo.hits.map((hit) => hit.document.id).sort()).toEqual([
       firstId,
       secondId,

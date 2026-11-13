@@ -128,3 +128,15 @@ export interface IVersion {
   latestVersion: string;
   releaseUrl: string;
 }
+
+export interface ITypesenseSettings {
+  url: string;
+  locale: string;
+  hasApiKey: boolean;
+}
+
+export interface IUpdateTypesenseSettings {
+  url: string;
+  locale: string;
+  apiKey?: string;
+}

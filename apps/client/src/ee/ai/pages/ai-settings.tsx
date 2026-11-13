@@ -8,11 +8,10 @@ import EnableAiChat from "@/ee/ai-chat/components/enable-ai-chat.tsx";
 import AiChatReadOnly from "@/ee/ai-chat/components/ai-chat-read-only.tsx";
 import AiChatWorkspaceKnowledgeOnly from "@/ee/ai-chat/components/ai-chat-workspace-knowledge-only.tsx";
 import McpSettings from "@/ee/ai/components/mcp-settings.tsx";
-import { Alert, Collapse, Stack, Tabs } from "@mantine/core";
-import { IconInfoCircle } from "@tabler/icons-react";
+import { Collapse, Stack, Tabs } from "@mantine/core";
+
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 import { useLocation, useNavigate } from "react-router-dom";
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
 import { useAtomValue } from "jotai";
@@ -22,15 +21,16 @@ export default function AiSettings() {
   const { t } = useTranslation();
   const { isAdmin } = useUserRole();
   const hasAccess = useHasFeature(Feature.AI);
-  const unavailableLabel = useFeatureUnavailableLabel();
+  const hasMcp = useHasFeature(Feature.MCP);
   const workspace = useAtomValue(workspaceAtom);
   const aiChatEnabled = workspace?.settings?.ai?.chat === true;
   const location = useLocation();
   const navigate = useNavigate();
 
-  const activeTab = location.pathname.endsWith("/mcp") ? "mcp" : "ai";
+  const activeTab =
+    hasMcp && (location.pathname.endsWith("/mcp") || !hasAccess) ? "mcp" : "ai";
 
-  if (!isAdmin) {
+  if (!isAdmin || (!hasAccess && !hasMcp)) {
     return null;
   }
 
@@ -49,50 +49,47 @@ export default function AiSettings() {
 
       <Tabs color="dark" value={activeTab} onChange={handleTabChange}>
         <Tabs.List>
-          <Tabs.Tab fw={500} value="ai">
-            {t("AI")}
-          </Tabs.Tab>
-          <Tabs.Tab fw={500} value="mcp">
-            {t("MCP")}
-          </Tabs.Tab>
+          {hasAccess && (
+            <Tabs.Tab fw={500} value="ai">
+              {t("AI")}
+            </Tabs.Tab>
+          )}
+          {hasMcp && (
+            <Tabs.Tab fw={500} value="mcp">
+              {t("MCP")}
+            </Tabs.Tab>
+          )}
         </Tabs.List>
 
-        <Tabs.Panel value="ai" pt="md">
-          {!hasAccess && (
-            <Alert
-              icon={<IconInfoCircle />}
-              title={unavailableLabel}
-              color="blue"
-              mb="lg"
-            >
-              {t("AI is not available on this instance.")}
-            </Alert>
-          )}
+        {hasAccess && (
+          <Tabs.Panel value="ai" pt="md">
+            <Stack gap="md">
+              <EnableAiSearch />
+              <EnableGenerativeAi />
+              <EnableAiChat />
+              <Collapse expanded={aiChatEnabled}>
+                <Stack
+                  gap="md"
+                  pl="md"
+                  ml="xs"
+                  style={{
+                    borderLeft:
+                      "2px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
+                  }}
+                >
+                  <AiChatReadOnly />
+                  <AiChatWorkspaceKnowledgeOnly />
+                </Stack>
+              </Collapse>
+            </Stack>
+          </Tabs.Panel>
+        )}
 
-          <Stack gap="md">
-            <EnableAiSearch />
-            <EnableGenerativeAi />
-            <EnableAiChat />
-            <Collapse expanded={aiChatEnabled}>
-              <Stack
-                gap="md"
-                pl="md"
-                ml="xs"
-                style={{
-                  borderLeft:
-                    "2px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
-                }}
-              >
-                <AiChatReadOnly />
-                <AiChatWorkspaceKnowledgeOnly />
-              </Stack>
-            </Collapse>
-          </Stack>
-        </Tabs.Panel>
-
-        <Tabs.Panel value="mcp" pt="md">
-          <McpSettings />
-        </Tabs.Panel>
+        {hasMcp && (
+          <Tabs.Panel value="mcp" pt="md">
+            <McpSettings />
+          </Tabs.Panel>
+        )}
       </Tabs>
     </>
   );

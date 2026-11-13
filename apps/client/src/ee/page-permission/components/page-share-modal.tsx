@@ -1,14 +1,5 @@
 import { useState } from "react";
-import {
-  Button,
-  Indicator,
-  Loader,
-  Modal,
-  Stack,
-  Tabs,
-  Text,
-  Center,
-} from "@mantine/core";
+import { Button, Indicator, Loader, Modal, Tabs, Center } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconWorld, IconLock } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
@@ -41,7 +32,8 @@ export function PageShareModal({ readOnly }: PageShareModalProps) {
 
   const [workspace] = useAtom(workspaceAtom);
   const { data: space } = useSpaceQuery(spaceSlug);
-  const workspaceSharingDisabled = workspace?.settings?.sharing?.disabled === true;
+  const workspaceSharingDisabled =
+    workspace?.settings?.sharing?.disabled === true;
   const spaceSharingDisabled = space?.settings?.sharing?.disabled === true;
 
   const { data: page } = usePageQuery({ pageId: pageSlugId });
@@ -52,7 +44,9 @@ export function PageShareModal({ readOnly }: PageShareModalProps) {
   const isPubliclyShared = !!share;
 
   const { data: restrictionInfo, isLoading: restrictionLoading } =
-    usePageRestrictionInfoQuery(opened && hasPagePermissions ? pageId : undefined);
+    usePageRestrictionInfoQuery(
+      opened && hasPagePermissions ? pageId : undefined,
+    );
 
   return (
     <>
@@ -72,7 +66,13 @@ export function PageShareModal({ readOnly }: PageShareModalProps) {
         }
         variant="default"
         onClick={() => {
-          setActiveTab(isPubliclyShared ? "publish" : hasPagePermissions ? "access" : "publish");
+          setActiveTab(
+            isPubliclyShared
+              ? "publish"
+              : hasPagePermissions
+                ? "access"
+                : "publish",
+          );
           open();
         }}
       >
@@ -88,7 +88,9 @@ export function PageShareModal({ readOnly }: PageShareModalProps) {
       >
         <Tabs value={activeTab} color="dark" onChange={setActiveTab}>
           <Tabs.List mb="md">
-            <Tabs.Tab value="access">{t("Access")}</Tabs.Tab>
+            {hasPagePermissions && (
+              <Tabs.Tab value="access">{t("Access")}</Tabs.Tab>
+            )}
             <Tabs.Tab
               value="publish"
               rightSection={
@@ -101,30 +103,20 @@ export function PageShareModal({ readOnly }: PageShareModalProps) {
             </Tabs.Tab>
           </Tabs.List>
 
-          <Tabs.Panel value="access">
-            {!hasPagePermissions ? (
-              <Stack align="center" py="md">
-                <IconLock size={20} stroke={1.5} />
-                <Text size="sm" ta="center" fw={500}>
-                  {t("Page permissions")}
-                </Text>
-                <Text size="sm" c="dimmed" ta="center">
-                  {t(
-                    "Control who can view and edit individual pages. This feature is not available on this instance.",
-                  )}
-                </Text>
-              </Stack>
-            ) : restrictionLoading || !pageId || !restrictionInfo ? (
-              <Center py="xl">
-                <Loader size="sm" />
-              </Center>
-            ) : (
-              <PagePermissionTab
-                pageId={pageId}
-                restrictionInfo={restrictionInfo}
-              />
-            )}
-          </Tabs.Panel>
+          {hasPagePermissions && (
+            <Tabs.Panel value="access">
+              {restrictionLoading || !pageId || !restrictionInfo ? (
+                <Center py="xl">
+                  <Loader size="sm" />
+                </Center>
+              ) : (
+                <PagePermissionTab
+                  pageId={pageId}
+                  restrictionInfo={restrictionInfo}
+                />
+              )}
+            </Tabs.Panel>
+          )}
 
           <Tabs.Panel value="publish">
             <PublishTab

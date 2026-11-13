@@ -1,3 +1,5 @@
+import { TypesenseConfigService } from '../../../integrations/search/typesense-config.service';
+import { UpdateTypesenseConfigDto } from '../dto/update-typesense-config.dto';
 import {
   Body,
   Controller,
@@ -46,6 +48,7 @@ export class WorkspaceController {
     private readonly workspaceAbility: WorkspaceAbilityFactory,
     private environmentService: EnvironmentService,
     private featureService: FeatureService,
+    private readonly typesenseConfig: TypesenseConfigService,
   ) {}
 
   @Public()
@@ -98,6 +101,47 @@ export class WorkspaceController {
     }
 
     return updatedWorkspace;
+  }
+
+  private requireSettingsAccess(user: User, workspace: Workspace) {
+    const ability = this.workspaceAbility.createForUser(user, workspace);
+    if (
+      ability.cannot(WorkspaceCaslAction.Manage, WorkspaceCaslSubject.Settings)
+    ) {
+      throw new ForbiddenException();
+    }
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('search/settings')
+  async getSearchSettings(
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    this.requireSettingsAccess(user, workspace);
+    return this.typesenseConfig.getSettings(workspace.id);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('search/settings/update')
+  async updateSearchSettings(
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+    @Body() dto: UpdateTypesenseConfigDto,
+  ) {
+    this.requireSettingsAccess(user, workspace);
+    return this.typesenseConfig.save(workspace.id, dto);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('search/settings/test')
+  async testSearchSettings(
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+    @Body() dto: UpdateTypesenseConfigDto,
+  ) {
+    this.requireSettingsAccess(user, workspace);
+    return this.typesenseConfig.testConnection(workspace.id, dto);
   }
 
   @HttpCode(HttpStatus.OK)

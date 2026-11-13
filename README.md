@@ -86,6 +86,9 @@ DOCKER_CACHE_DIR="$HOME/.cache/docmost-buildx" npm run docker-push -- \
   --allow="fs=$HOME/.cache/docmost-buildx"
 ```
 
+On the first build, the npm commands only export the cache. They enable cache
+imports automatically once `index.json` exists in the cache directory.
+
 The pnpm cache mounts remain in BuildKit's own persistent storage; local layer
 exports do not include their contents. Keep the same builder to reuse downloaded
 packages when dependencies change. Local layer exports retain older blobs and
@@ -119,41 +122,46 @@ commands with `npm run deploy -- --dry-run`.
 ### Typesense search
 
 This fork includes an independent Typesense integration for page titles and body
-text. Configure `TYPESENSE_URL`, `TYPESENSE_API_KEY`, and optionally
-`TYPESENSE_LOCALE` (`en` by default, `zh` for Chinese) on the server. Workspace
-administrators can then enable **Use Typesense search** under **Settings →
-Workspace → General** without restarting the server. The control is disabled
-until the server has Typesense configured. The API key stays on the server.
-Typesense's [collection documentation](https://typesense.org/docs/30.1/api/collections.html)
-describes language-specific tokenization.
+text. Workspace administrators configure the connection under **Settings →
+Workspace → General**: enter the Typesense URL reachable from the Docmost server,
+an API key with collection/document management permissions, and a language code
+(`zh` for Chinese, `en` for English). **Test connection** checks the address and
+key without saving. **Save connection** validates and saves the connection, then
+queues a backfill. Enable **Use Typesense search** to use it for that workspace.
+No Docmost environment variables or server restart are needed.
 
-`SEARCH_DRIVER` sets the default for workspaces that have not saved a search
-preference (`database` by default). A saved workspace preference overrides it,
-including when Typesense is the server default.
+Connections are isolated by workspace and stored in the database. API keys are
+encrypted using the existing `APP_SECRET` and are never returned to the browser.
+Leaving the key field blank preserves the saved key. Only workspace owners and
+administrators can read or change connection settings. Existing environment-based
+connections remain supported as a fallback until a workspace saves its own settings.
 
-For Docker Compose, put a strong `TYPESENSE_API_KEY` in `.env` and run:
+Typesense is a separate service and must already be running. For Docker Compose,
+replace `REPLACE_WITH_LONG_RANDOM_KEY` in `docker-compose.search.yml` with a strong
+key (generate one using `openssl rand -hex 32`), then run:
 
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.search.yml up -d
 ```
 
-The override uses Chinese tokenization by default, persists the index, and keeps
-Typesense off the host's public ports. Build the updated Docmost image before
-starting it; the upstream image does not include this integration.
+In the admin form, enter `http://typesense:8108`, the same key, and `zh`.
+The override persists the index and keeps Typesense off the host's public ports.
+Build the updated Docmost image before starting it; the upstream image does not
+include this integration.
 
-While Typesense is configured, pages are indexed in background batches on startup
-and reconciled hourly, even when the server's default search driver is database.
-Creates, edits, restores, and deletes are synchronized through the search queue.
-Enabling Typesense for a workspace also queues a backfill of that workspace's
-existing pages. Initial indexing is asynchronous, so results can be incomplete
-until it finishes. Changing the locale builds a new collection; old locale
-collections remain available for manual cleanup.
+Configured workspaces are indexed in background batches on startup and reconciled
+hourly, even when database search is selected. Creates, edits, restores, and
+deletes are synchronized through the search queue. Saving a connection or enabling
+Typesense queues a backfill of existing pages. Initial indexing is asynchronous,
+so results can be incomplete until it finishes. Changing the locale builds a new
+collection; old locale collections remain available for manual cleanup.
+Typesense's [collection documentation](https://typesense.org/docs/30.1/api/collections.html)
+describes language-specific tokenization.
 
 Search results are checked against live workspace, space, page, public-space,
 and share permissions in PostgreSQL. Creator, label, and archived-space filters
 also use live database state. Typesense failures fall back to database search.
-Turn off the workspace setting to use database search for that workspace; remove
-the server's Typesense API key (and use `SEARCH_DRIVER=database`) to stop indexing.
+Turn off the workspace setting to use database search for that workspace.
 This implementation covers pages; attachment text and AI search are separate
 features.
 

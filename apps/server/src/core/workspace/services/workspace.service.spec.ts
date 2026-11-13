@@ -70,6 +70,9 @@ function buildService(config: Record<string, string> = {}, settings = {}) {
     { disconnectUser: jest.fn() } as any,
     { recheckAccess: jest.fn() } as any,
     searchQueue as any,
+    {
+      isConfigured: jest.fn(async () => environment.isTypesenseConfigured()),
+    } as any,
   );
 
   return {
@@ -149,7 +152,7 @@ describe('WorkspaceService search settings', () => {
     const { service, workspaceRepo, searchQueue } = buildService();
     await expect(
       service.update(workspaceId, { searchDriver: 'typesense' } as any),
-    ).rejects.toThrow('Typesense is not configured');
+    ).rejects.toThrow('Configure Typesense in workspace settings');
     expect(workspaceRepo.updateSearchDriver).not.toHaveBeenCalled();
     expect(searchQueue.add).not.toHaveBeenCalled();
   });

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Alert, Button, Group, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconAlertCircle, IconInfoCircle } from "@tabler/icons-react";
+import { IconAlertCircle } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import useUserRole from "@/hooks/use-user-role";
 import { useHasFeature } from "@/ee/hooks/use-feature";
@@ -25,7 +25,8 @@ export default function SiemStreamingPanel() {
   const { t } = useTranslation();
   const { isOwner } = useUserRole();
   const hasFeature = useHasFeature(Feature.SIEM);
-  const { data, isLoading, isError, error } = useSiemDestinationsQuery(hasFeature);
+  const { data, isLoading, isError, error } =
+    useSiemDestinationsQuery(hasFeature);
   const updateMutation = useUpdateSiemDestinationMutation();
   const retryMutation = useRetrySiemDestinationMutation();
   const testMutation = useTestSiemDestinationMutation();
@@ -33,7 +34,7 @@ export default function SiemStreamingPanel() {
   const [deleteOpened, setDeleteOpened] = useState(false);
   const [selected, setSelected] = useState<ISiemDestination | null>(null);
 
-  if (!isOwner) {
+  if (!isOwner || !hasFeature) {
     return null;
   }
 
@@ -59,12 +60,6 @@ export default function SiemStreamingPanel() {
 
   return (
     <>
-      {!hasFeature && (
-        <Alert icon={<IconInfoCircle size={16} />} color="yellow" mb="md">
-          {t("SIEM streaming is not available on this instance.")}
-        </Alert>
-      )}
-
       <Group justify="flex-end" mb="md">
         <Tooltip
           label={t("Maximum of {{limit}} destinations reached", {
@@ -95,23 +90,25 @@ export default function SiemStreamingPanel() {
       )}
 
       {hasFeature && !isError && (
-      <DestinationTable
-        destinations={data}
-        isLoading={isLoading}
-        onEdit={(destination) => {
-          setSelected(destination);
-          setFormOpened(true);
-        }}
-        onTest={handleTest}
-        onRetry={(destination) => retryMutation.mutate({ destinationId: destination.id })}
-        onDelete={(destination) => {
-          setSelected(destination);
-          setDeleteOpened(true);
-        }}
-        onToggle={(destination, enabled) =>
-          updateMutation.mutate({ destinationId: destination.id, enabled })
-        }
-      />
+        <DestinationTable
+          destinations={data}
+          isLoading={isLoading}
+          onEdit={(destination) => {
+            setSelected(destination);
+            setFormOpened(true);
+          }}
+          onTest={handleTest}
+          onRetry={(destination) =>
+            retryMutation.mutate({ destinationId: destination.id })
+          }
+          onDelete={(destination) => {
+            setSelected(destination);
+            setDeleteOpened(true);
+          }}
+          onToggle={(destination, enabled) =>
+            updateMutation.mutate({ destinationId: destination.id, enabled })
+          }
+        />
       )}
 
       <DestinationFormModal

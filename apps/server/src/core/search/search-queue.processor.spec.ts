@@ -3,16 +3,13 @@ import { QueueJob } from '../../integrations/queue/constants';
 
 describe('SearchQueueProcessor', () => {
   const id = '019a1f00-0000-7000-8000-000000000001';
-  function setup(configured = true) {
+  function setup() {
     const typesense = {
       syncPages: jest.fn(),
       removeByFilter: jest.fn(),
       reindexBatch: jest.fn(),
     };
-    const processor = new SearchQueueProcessor(
-      { isTypesenseConfigured: () => configured } as any,
-      typesense as any,
-    );
+    const processor = new SearchQueueProcessor(typesense as any);
     return { processor, typesense };
   }
 
@@ -25,8 +22,11 @@ describe('SearchQueueProcessor', () => {
     'synchronizes current database state for %s, including delayed deletion events',
     async (name) => {
       const { processor, typesense } = setup();
-      await processor.process({ name, data: { pageIds: [id] } } as any);
-      expect(typesense.syncPages).toHaveBeenCalledWith([id]);
+      await processor.process({
+        name,
+        data: { pageIds: [id], workspaceId: id },
+      } as any);
+      expect(typesense.syncPages).toHaveBeenCalledWith([id], false, id);
       expect(typesense.removeByFilter).not.toHaveBeenCalled();
     },
   );
@@ -35,9 +35,9 @@ describe('SearchQueueProcessor', () => {
     const { processor, typesense } = setup();
     await processor.process({
       name: QueueJob.PAGE_CREATED,
-      data: { pageIds: [id] },
+      data: { pageIds: [id], workspaceId: id },
     } as any);
-    expect(typesense.syncPages).toHaveBeenCalledWith([id], true);
+    expect(typesense.syncPages).toHaveBeenCalledWith([id], true, id);
   });
 
   it.each([
@@ -45,8 +45,14 @@ describe('SearchQueueProcessor', () => {
     [QueueJob.WORKSPACE_DELETED, 'workspaceId'],
   ])('removes the scope for %s', async (name, field) => {
     const { processor, typesense } = setup();
-    await processor.process({ name, data: { [field]: id } } as any);
-    expect(typesense.removeByFilter).toHaveBeenCalledWith(`${field}:=${id}`);
+    await processor.process({
+      name,
+      data: { [field]: id, workspaceId: id },
+    } as any);
+    expect(typesense.removeByFilter).toHaveBeenCalledWith(
+      `${field}:=${id}`,
+      id,
+    );
   });
 
   it('continues keyset backfills from the queued cursor', async () => {
@@ -56,14 +62,5 @@ describe('SearchQueueProcessor', () => {
       data: { cursor: id, workspaceId: id },
     } as any);
     expect(typesense.reindexBatch).toHaveBeenCalledWith(id, id);
-  });
-
-  it('leaves Typesense untouched when it is not configured', async () => {
-    const { processor, typesense } = setup(false);
-    await processor.process({
-      name: QueueJob.PAGE_UPDATED,
-      data: { pageIds: [id] },
-    } as any);
-    expect(typesense.syncPages).not.toHaveBeenCalled();
   });
 });

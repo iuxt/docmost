@@ -4,7 +4,6 @@ import {
   Button,
   Menu,
   Text,
-  Badge,
   Group,
   ScrollArea,
   Switch,
@@ -55,12 +54,14 @@ export function SearchSpotlightFilters({
   const { t } = useTranslation();
   const hasAttachmentIndexing = useHasFeature(Feature.ATTACHMENT_INDEXING);
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(
-    spaceId || null
+    spaceId || null,
   );
   const [contentType, setContentType] = useState<string | null>("page");
-  const [selectedCreatorId, setSelectedCreatorId] = useState<string | null>(null);
+  const [selectedCreatorId, setSelectedCreatorId] = useState<string | null>(
+    null,
+  );
   const [selectedCreatorName, setSelectedCreatorName] = useState<string | null>(
-    null
+    null,
   );
   const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([]);
   const [titleOnly, setTitleOnly] = useState(false);
@@ -256,38 +257,40 @@ export function SearchSpotlightFilters({
           </Button>
         </Menu.Target>
         <Menu.Dropdown>
-          {contentTypeOptions.map((option) => (
-            <Menu.Item
-              key={option.value}
-              component={RadioMenuItem}
-              aria-checked={contentType === option.value}
-              onClick={() =>
-                !option.disabled &&
-                contentType !== option.value &&
-                handleChangeContentType(option.value)
-              }
-              disabled={
-                option.disabled || (isAiMode && option.value === "attachment")
-              }
-            >
-              <Group flex="1" gap="xs">
-                <div>
-                  <Text size="sm">{option.label}</Text>
-                  {option.disabled && (
-                    <Badge size="xs" mt={4}>
-                      {t("Enterprise")}
-                    </Badge>
+          {contentTypeOptions
+            .filter((option) => !option.disabled)
+            .map((option) => (
+              <Menu.Item
+                key={option.value}
+                component={RadioMenuItem}
+                aria-checked={contentType === option.value}
+                onClick={() =>
+                  !option.disabled &&
+                  contentType !== option.value &&
+                  handleChangeContentType(option.value)
+                }
+                disabled={
+                  option.disabled || (isAiMode && option.value === "attachment")
+                }
+              >
+                <Group flex="1" gap="xs">
+                  <div>
+                    <Text size="sm">{option.label}</Text>
+
+                    {!option.disabled &&
+                      isAiMode &&
+                      option.value === "attachment" && (
+                        <Text size="xs" mt={4}>
+                          {t("AI Answers not available for attachments")}
+                        </Text>
+                      )}
+                  </div>
+                  {contentType === option.value && (
+                    <IconCheck size={20} aria-hidden />
                   )}
-                  {!option.disabled && isAiMode && option.value === "attachment" && (
-                    <Text size="xs" mt={4}>
-                      {t("AI Answers not available for attachments")}
-                    </Text>
-                  )}
-                </div>
-                {contentType === option.value && <IconCheck size={20} aria-hidden />}
-              </Group>
-            </Menu.Item>
-          ))}
+                </Group>
+              </Menu.Item>
+            ))}
         </Menu.Dropdown>
       </Menu>
 
@@ -312,70 +315,70 @@ export function SearchSpotlightFilters({
 
       {!isAiMode &&
         orderedVisibleFilters.map((filterKey) => {
-        if (filterKey === "creator") {
-          return (
-            <CreatorFilterMenu
-              key="creator"
-              value={selectedCreatorId}
-              onChange={handleCreatorSelect}
-              position="bottom-start"
-              width={250}
-              zIndex={getDefaultZIndex("max")}
-              opened={openedFilter === "creator"}
-              onOpenChange={(opened) =>
-                setOpenedFilter(opened ? "creator" : null)
-              }
-            >
-              <Button
-                variant="subtle"
-                color="gray"
-                size="sm"
-                rightSection={<IconChevronDown size={14} />}
-                leftSection={<IconUser size={16} />}
-                className={classes.filterButton}
-                fw={500}
+          if (filterKey === "creator") {
+            return (
+              <CreatorFilterMenu
+                key="creator"
+                value={selectedCreatorId}
+                onChange={handleCreatorSelect}
+                position="bottom-start"
+                width={250}
+                zIndex={getDefaultZIndex("max")}
+                opened={openedFilter === "creator"}
+                onOpenChange={(opened) =>
+                  setOpenedFilter(opened ? "creator" : null)
+                }
               >
-                {selectedCreatorId
-                  ? `${t("Created by")}: ${selectedCreatorName || t("Unknown")}`
-                  : `${t("Created by")}: ${t("Anyone")}`}
-              </Button>
-            </CreatorFilterMenu>
-          );
-        }
+                <Button
+                  variant="subtle"
+                  color="gray"
+                  size="sm"
+                  rightSection={<IconChevronDown size={14} />}
+                  leftSection={<IconUser size={16} />}
+                  className={classes.filterButton}
+                  fw={500}
+                >
+                  {selectedCreatorId
+                    ? `${t("Created by")}: ${selectedCreatorName || t("Unknown")}`
+                    : `${t("Created by")}: ${t("Anyone")}`}
+                </Button>
+              </CreatorFilterMenu>
+            );
+          }
 
-        if (filterKey === "labels") {
-          return (
-            <LabelFilterMenu
-              key="labels"
-              value={selectedLabelIds}
-              onChange={handleLabelsSelect}
-              position="bottom-start"
-              width={250}
-              zIndex={getDefaultZIndex("max")}
-              opened={openedFilter === "labels"}
-              onOpenChange={(opened) =>
-                setOpenedFilter(opened ? "labels" : null)
-              }
-            >
-              <Button
-                variant="subtle"
-                color="gray"
-                size="sm"
-                rightSection={<IconChevronDown size={14} />}
-                leftSection={<IconTag size={16} />}
-                className={classes.filterButton}
-                fw={500}
+          if (filterKey === "labels") {
+            return (
+              <LabelFilterMenu
+                key="labels"
+                value={selectedLabelIds}
+                onChange={handleLabelsSelect}
+                position="bottom-start"
+                width={250}
+                zIndex={getDefaultZIndex("max")}
+                opened={openedFilter === "labels"}
+                onOpenChange={(opened) =>
+                  setOpenedFilter(opened ? "labels" : null)
+                }
               >
-                {selectedLabelIds.length > 0
-                  ? `${t("Labels")} (${selectedLabelIds.length})`
-                  : t("Labels")}
-              </Button>
-            </LabelFilterMenu>
-          );
-        }
+                <Button
+                  variant="subtle"
+                  color="gray"
+                  size="sm"
+                  rightSection={<IconChevronDown size={14} />}
+                  leftSection={<IconTag size={16} />}
+                  className={classes.filterButton}
+                  fw={500}
+                >
+                  {selectedLabelIds.length > 0
+                    ? `${t("Labels")} (${selectedLabelIds.length})`
+                    : t("Labels")}
+                </Button>
+              </LabelFilterMenu>
+            );
+          }
 
-        return null;
-      })}
+          return null;
+        })}
 
       {!isAiMode && includeArchived && (
         <Button

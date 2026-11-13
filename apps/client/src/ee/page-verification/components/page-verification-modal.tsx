@@ -22,7 +22,6 @@ import { usePageVerificationInfoQuery } from "@/ee/page-verification/queries/pag
 import { reviewChangesAtom } from "@/ee/page-verification/atoms/review-changes-atom";
 import { useReviewChangesDeepLink } from "@/ee/page-verification/hooks/use-review-changes-deep-link";
 import { useHasFeature } from "@/ee/hooks/use-feature";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 import { Feature } from "@/ee/features";
 import { SetupVerificationForm } from "./setup-verification-form";
 import { ManageVerificationForm } from "./manage-verification-form";
@@ -54,12 +53,16 @@ export function PageVerificationModal({
 
   const status = verificationInfo?.status ?? "none";
 
+  if (!hasVerificationFeature) return null;
+
   return (
     <Modal
       opened={opened}
       onClose={onClose}
       closeOnEscape={!isReviewOpen}
-      aria-label={status === "none" ? t("Set up verification") : t("Verify page")}
+      aria-label={
+        status === "none" ? t("Set up verification") : t("Verify page")
+      }
       title={
         <Group gap="xs">
           <IconShieldCheck
@@ -104,7 +107,6 @@ export function PageVerificationBadge({
     isLoading,
     refetch: refetchVerificationInfo,
   } = usePageVerificationInfoQuery(hasVerificationFeature ? pageId : undefined);
-  const unavailableLabel = useFeatureUnavailableLabel();
 
   useReviewChangesDeepLink({
     pageId: hasVerificationFeature ? pageId : undefined,
@@ -113,25 +115,7 @@ export function PageVerificationBadge({
   });
 
   if (!pageId) return null;
-  if (!hasVerificationFeature) {
-    if (readOnly) return null;
-    const lockedLabel = `${t("Add verification")} — ${unavailableLabel}`;
-    // Use ActionIcon (a real <button>) instead of a ThemeIcon so the tooltip
-    // is reachable on keyboard focus, and screen readers announce the upgrade
-    // hint via the accessible name. Click is a no-op since the feature is
-    // gated; the tooltip explains why.
-    return (
-      <Tooltip label={lockedLabel} withArrow openDelay={250}>
-        <ActionIcon
-          variant="subtle"
-          color="gray"
-          aria-label={lockedLabel}
-        >
-          <IconShieldCheck size={20} stroke={1.5} />
-        </ActionIcon>
-      </Tooltip>
-    );
-  }
+  if (!hasVerificationFeature) return null;
   if (isLoading) return null;
 
   const status = verificationInfo?.status ?? "none";
@@ -202,7 +186,6 @@ export function PageVerificationMenuItem({
 }: PageVerificationMenuItemProps) {
   const { t } = useTranslation();
   const hasVerificationFeature = useHasFeature(Feature.PAGE_VERIFICATION);
-  const unavailableLabel = useFeatureUnavailableLabel();
 
   const { data: verificationInfo } = usePageVerificationInfoQuery(
     hasVerificationFeature ? pageId : undefined,
@@ -224,13 +207,7 @@ export function PageVerificationMenuItem({
     </Menu.Item>
   );
 
-  if (!hasVerificationFeature) {
-    return (
-      <Tooltip label={unavailableLabel} position="left" withinPortal={false}>
-        {menuItem}
-      </Tooltip>
-    );
-  }
+  if (!hasVerificationFeature) return null;
 
   return menuItem;
 }

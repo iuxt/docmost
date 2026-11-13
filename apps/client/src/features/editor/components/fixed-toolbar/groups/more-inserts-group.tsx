@@ -1,6 +1,6 @@
 import { FC } from "react";
 import type { Editor } from "@tiptap/react";
-import { ActionIcon, Badge, Menu, Tooltip } from "@mantine/core";
+import { ActionIcon, Menu, Tooltip } from "@mantine/core";
 import {
   IconAppWindow,
   IconCalendar,
@@ -35,7 +35,6 @@ import { useTranslation } from "react-i18next";
 import { insertBaseEmbedBlock } from "@/features/editor/components/base-embed/insert-base-embed";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 
 interface Props {
   editor: Editor;
@@ -45,7 +44,6 @@ interface Props {
 export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
   const { t, i18n } = useTranslation();
   const hasBases = useHasFeature(Feature.BASES);
-  const unavailableLabel = useFeatureUnavailableLabel();
 
   const setEmbed = (provider: string) =>
     editor.chain().focus().setEmbed({ provider }).run();
@@ -118,49 +116,26 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
             {t("Synced block")}
           </Menu.Item>
         )}
-        {!templateMode && (
-          <Tooltip label={unavailableLabel} disabled={hasBases} position="right">
-            <Menu.Item
-              leftSection={<IconTable size={16} />}
-              aria-disabled={!hasBases}
-              closeMenuOnClick={hasBases}
-              style={{ opacity: hasBases ? undefined : 0.7 }}
-              rightSection={
-                !hasBases && (
-                  <Badge size="xs" variant="light" color="gray">
-                    {t("Unavailable")}
-                  </Badge>
-                )
-              }
-              onClick={() => {
-                if (hasBases) insertBaseEmbedBlock(editor);
-              }}
-            >
-              {t("Base (Inline)")}
-            </Menu.Item>
-          </Tooltip>
+        {!templateMode && hasBases && (
+          <Menu.Item
+            leftSection={<IconTable size={16} />}
+            onClick={() => {
+              if (hasBases) insertBaseEmbedBlock(editor);
+            }}
+          >
+            {t("Base (Inline)")}
+          </Menu.Item>
         )}
-        {!templateMode && (
-          <Tooltip label={unavailableLabel} disabled={hasBases} position="right">
-            <Menu.Item
-              leftSection={<IconLayoutKanban size={16} />}
-              aria-disabled={!hasBases}
-              closeMenuOnClick={hasBases}
-              style={{ opacity: hasBases ? undefined : 0.7 }}
-              rightSection={
-                !hasBases && (
-                  <Badge size="xs" variant="light" color="gray">
-                    {t("Unavailable")}
-                  </Badge>
-                )
-              }
-              onClick={() => {
-                if (hasBases) insertBaseEmbedBlock(editor, { template: "kanban" });
-              }}
-            >
-              {t("Kanban")}
-            </Menu.Item>
-          </Tooltip>
+        {!templateMode && hasBases && (
+          <Menu.Item
+            leftSection={<IconLayoutKanban size={16} />}
+            onClick={() => {
+              if (hasBases)
+                insertBaseEmbedBlock(editor, { template: "kanban" });
+            }}
+          >
+            {t("Kanban")}
+          </Menu.Item>
         )}
 
         <Menu.Divider />
@@ -215,7 +190,10 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
         >
           Vimeo
         </Menu.Item>
-        <Menu.Item leftSection={<LoomIcon size={16} />} onClick={() => setEmbed("loom")}>
+        <Menu.Item
+          leftSection={<LoomIcon size={16} />}
+          onClick={() => setEmbed("loom")}
+        >
           Loom
         </Menu.Item>
         <Menu.Item
@@ -236,7 +214,10 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
         >
           Typeform
         </Menu.Item>
-        <Menu.Item leftSection={<MiroIcon size={16} />} onClick={() => setEmbed("miro")}>
+        <Menu.Item
+          leftSection={<MiroIcon size={16} />}
+          onClick={() => setEmbed("miro")}
+        >
           Miro
         </Menu.Item>
         <Menu.Item

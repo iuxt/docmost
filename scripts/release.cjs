@@ -10,6 +10,7 @@ const env = {
   DEPLOY_HOST: process.env.DEPLOY_HOST || config.deploy_host,
   DEPLOY_DIR: process.env.DEPLOY_DIR || config.deploy_dir,
   VERSION: process.env.VERSION || version,
+  DOCKER_CACHE_DIR: process.env.DOCKER_CACHE_DIR || '.buildx-cache',
 };
 
 const commands = {
@@ -31,6 +32,14 @@ const action = process.argv[2];
 if (!Object.hasOwn(commands, action)) {
   console.error('Usage: node scripts/release.cjs docker-build|docker-push|deploy [options]');
   process.exit(1);
+}
+
+// A fresh cache has no index yet. Always export it, but only import once it exists.
+if (action === 'docker-build' || action === 'docker-push') {
+  const cacheIndex = path.resolve(root, env.DOCKER_CACHE_DIR, 'index.json');
+  if (fs.statSync(cacheIndex, { throwIfNoEntry: false })?.isFile()) {
+    commands[action][1].push('--set', `docmost.cache-from=type=local,src=${env.DOCKER_CACHE_DIR}`);
+  }
 }
 
 const commandArgs = [];

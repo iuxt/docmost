@@ -14,7 +14,12 @@ import {
   currentUserAtom,
   workspaceAtom,
 } from "@/features/user/atoms/current-user-atom.ts";
-import { updateWorkspace } from "@/features/workspace/services/workspace-service.ts";
+import {
+  getTypesenseSettings,
+  saveTypesenseSettings,
+  testTypesenseSettings,
+  updateWorkspace,
+} from "@/features/workspace/services/workspace-service.ts";
 import { IWorkspace } from "@/features/workspace/types/workspace.types.ts";
 import WorkspaceSearchSettings from "./workspace-search-settings";
 
@@ -23,6 +28,9 @@ vi.mock("react-i18next", () => ({
 }));
 vi.mock("@/features/workspace/services/workspace-service.ts", () => ({
   updateWorkspace: vi.fn(),
+  getTypesenseSettings: vi.fn(),
+  saveTypesenseSettings: vi.fn(),
+  testTypesenseSettings: vi.fn(),
 }));
 vi.mock("@mantine/notifications", () => ({
   notifications: { show: vi.fn() },
@@ -62,6 +70,11 @@ function setup(overrides: Partial<IWorkspace> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(getTypesenseSettings).mockResolvedValue({
+    url: "http://typesense:8108",
+    locale: "zh",
+    hasApiKey: true,
+  });
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: vi.fn().mockImplementation((query) => ({
@@ -89,7 +102,7 @@ describe("Workspace search settings", () => {
     expect(toggle.disabled).toBe(true);
     expect(
       screen.getByText(
-        "Typesense is not configured on this server. Contact your administrator.",
+        "Configure the Typesense connection below to enable search.",
       ),
     ).toBeTruthy();
     expect(updateWorkspace).not.toHaveBeenCalled();
@@ -138,5 +151,81 @@ describe("Workspace search settings", () => {
     expect(toggle.checked).toBe(false);
     expect(toggle.disabled).toBe(false);
     expect(store.get(workspaceAtom)?.searchDriver).toBe("database");
+  });
+});
+
+describe("Typesense connection configuration", () => {
+  it("saves a new connection and unlocks search without restarting", async () => {
+    vi.mocked(getTypesenseSettings).mockResolvedValue({
+      url: "",
+      locale: "zh",
+      hasApiKey: false,
+    });
+    const { toggle, store } = setup({ typesenseConfigured: false });
+    const url = await screen.findByLabelText("Typesense URL");
+    await waitFor(() => expect((url as HTMLInputElement).disabled).toBe(false));
+    fireEvent.change(url, { target: { value: "http://search:8108" } });
+    fireEvent.change(screen.getByLabelText("Typesense API key"), {
+      target: { value: "new-secret" },
+    });
+    vi.mocked(saveTypesenseSettings).mockResolvedValue({
+      url: "http://search:8108",
+      locale: "zh",
+      hasApiKey: true,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save connection" }));
+    await waitFor(() => expect(toggle.disabled).toBe(false));
+    expect(saveTypesenseSettings).toHaveBeenCalledWith({
+      url: "http://search:8108",
+      locale: "zh",
+      apiKey: "new-secret",
+    });
+    expect(store.get(workspaceAtom)?.typesenseConfigured).toBe(true);
+    expect(
+      (screen.getByLabelText("Typesense API key") as HTMLInputElement).value,
+    ).toBe("");
+    expect(updateWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("tests the entered URL and reuses the saved key when the field is blank", async () => {
+    setup();
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText("Typesense URL") as HTMLInputElement).value,
+      ).toBe("http://typesense:8108"),
+    );
+    fireEvent.change(screen.getByLabelText("Typesense URL"), {
+      target: { value: "http://new-search:8108" },
+    });
+    vi.mocked(testTypesenseSettings).mockResolvedValue({ success: true });
+    fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
+    await waitFor(() =>
+      expect(testTypesenseSettings).toHaveBeenCalledWith({
+        url: "http://new-search:8108",
+        locale: "zh",
+      }),
+    );
+    expect(saveTypesenseSettings).not.toHaveBeenCalled();
+  });
+
+  it("preserves entered credentials after a failed save", async () => {
+    const { store } = setup({ typesenseConfigured: false });
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText("Typesense URL") as HTMLInputElement).value,
+      ).toBe("http://typesense:8108"),
+    );
+    fireEvent.change(screen.getByLabelText("Typesense API key"), {
+      target: { value: "retry-secret" },
+    });
+    vi.mocked(saveTypesenseSettings).mockRejectedValue(
+      new Error("Unavailable"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save connection" }));
+    await waitFor(() => expect(notifications.show).toHaveBeenCalled());
+    expect(
+      (screen.getByLabelText("Typesense API key") as HTMLInputElement).value,
+    ).toBe("retry-secret");
+    expect(store.get(workspaceAtom)?.typesenseConfigured).toBe(false);
   });
 });

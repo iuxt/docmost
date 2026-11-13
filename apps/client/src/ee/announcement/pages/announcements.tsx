@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Alert, Button, Group, Space, Text } from "@mantine/core";
 import { modals } from "@mantine/modals";
-import { IconAlertCircle, IconInfoCircle } from "@tabler/icons-react";
+import { IconAlertCircle } from "@tabler/icons-react";
 import { useAtomValue } from "jotai";
 import { useTranslation } from "react-i18next";
 import SettingsTitle from "@/components/settings/settings-title";
@@ -30,16 +30,13 @@ export default function Announcements() {
   const { t } = useTranslation();
   const { isAdmin } = useUserRole();
   const hasFeature = useHasFeature(Feature.ANNOUNCEMENTS);
-  // Wait for capability detection before showing the unavailable state.
   const capabilities = useAtomValue(capabilitiesAtom);
-  const isUnavailable = capabilities !== null && !hasFeature;
   const { search, cursor, goNext, goPrev, handleSearch, resetPagination } =
     usePaginateAndSearch();
   const [archived, setArchived] = useState(false);
   const [formOpened, setFormOpened] = useState(false);
   const [selected, setSelected] = useState<IAnnouncement | null>(null);
-  // Existing announcements remain readable when the feature is unavailable.
-  const canLoad = isAdmin && capabilities !== null;
+  const canLoad = isAdmin && hasFeature;
   const query = useAnnouncementsQuery(
     {
       cursor,
@@ -53,7 +50,7 @@ export default function Announcements() {
   const unarchiveMutation = useUnarchiveAnnouncementMutation();
   const deleteMutation = useDeleteAnnouncementMutation();
 
-  if (!isAdmin) {
+  if (!isAdmin || !hasFeature) {
     return null;
   }
 
@@ -96,23 +93,13 @@ export default function Announcements() {
 
       <SettingsTitle title={t("Announcements")} />
 
-      {isUnavailable && (
-        <Alert icon={<IconInfoCircle size={16} />} color="yellow" mb="md">
-          {t("Announcements are not available on this instance.")}
-        </Alert>
-      )}
-
       <Group justify="space-between" align="center" wrap="nowrap" mb="md">
         <Text size="sm" c="dimmed">
           {t(
             "Show a banner at the top of every page. Only one can show at a time.",
           )}
         </Text>
-        <Button
-          onClick={() => openForm(null)}
-          disabled={isUnavailable}
-          style={{ flexShrink: 0 }}
-        >
+        <Button onClick={() => openForm(null)} style={{ flexShrink: 0 }}>
           {t("New announcement")}
         </Button>
       </Group>

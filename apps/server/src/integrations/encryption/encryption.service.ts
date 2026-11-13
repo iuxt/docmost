@@ -16,6 +16,7 @@ import {
 } from './a256cbc-hs512';
 
 export enum EncryptionPurpose {
+  SEARCH_CREDENTIALS = 'search-credentials',
   SIEM_CREDENTIALS = 'siem-credentials',
   INTEGRATION_TOKENS = 'integration-tokens',
   OAUTH_COMPLETION = 'oauth-completion',

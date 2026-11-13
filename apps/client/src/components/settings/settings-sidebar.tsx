@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Group, Text, ScrollArea, ActionIcon, Tooltip } from "@mantine/core";
+import { Group, Text, ScrollArea, ActionIcon } from "@mantine/core";
 import {
   IconUser,
   IconSettings,
@@ -26,7 +26,6 @@ import useUserRole from "@/hooks/use-user-role.tsx";
 import { useAtom } from "jotai";
 import { capabilitiesAtom } from "@/features/workspace/capabilities/capabilities-atom";
 import { Feature } from "@/ee/features";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 import {
   prefetchApiKeyManagement,
   prefetchApiKeys,
@@ -81,6 +80,7 @@ const groupedData: DataGroup[] = [
         label: "Connections",
         icon: IconPlug,
         path: "/settings/account/connections",
+        feature: Feature.INTEGRATIONS,
         requiresInstalledIntegration: true,
       },
     ],
@@ -164,7 +164,6 @@ export default function SettingsSidebar() {
   const { goBack } = useSettingsNavigation();
   const { isAdmin, isOwner } = useUserRole();
   const [capabilities] = useAtom(capabilitiesAtom);
-  const unavailableLabel = useFeatureUnavailableLabel();
   const [mobileSidebarOpened] = useAtom(mobileSidebarAtom);
   const toggleMobileSidebar = useToggleSidebar(mobileSidebarAtom);
 
@@ -172,12 +171,18 @@ export default function SettingsSidebar() {
     setActive(location.pathname);
   }, [location.pathname]);
 
-  const { data: installedIntegrations } = useInstalledIntegrations();
+  const { data: installedIntegrations } = useInstalledIntegrations(
+    capabilities?.features?.includes(Feature.INTEGRATIONS) ?? false,
+  );
 
   const hasFeature = (f: string) =>
     capabilities?.features?.includes(f) ?? false;
 
+  const hasSso =
+    hasFeature(Feature.SSO_CUSTOM) || hasFeature(Feature.SSO_GOOGLE);
+
   const canShowItem = (item: DataItem) => {
+    if (item.feature && !hasFeature(item.feature)) return false;
     if (item.env === "cloud" && !isCloud()) return false;
     if (item.env === "selfhosted" && isCloud()) return false;
     if (item.role === "admin" && !isAdmin) return false;
@@ -186,11 +191,6 @@ export default function SettingsSidebar() {
       return false;
     }
     return true;
-  };
-
-  const isItemDisabled = (item: DataItem) => {
-    if (!item.feature) return false;
-    return !hasFeature(item.feature);
   };
 
   const menuItems = groupedData.map((group) => {
@@ -220,7 +220,10 @@ export default function SettingsSidebar() {
               break;
             case "Security & SSO":
               prefetchHandler = () => {
-                if (hasFeature(Feature.SSO_CUSTOM) || hasFeature(Feature.SSO_GOOGLE)) {
+                if (
+                  hasFeature(Feature.SSO_CUSTOM) ||
+                  hasFeature(Feature.SSO_GOOGLE)
+                ) {
                   prefetchSsoProviders();
                 }
                 if (hasFeature(Feature.SCIM)) prefetchScimTokens();
@@ -245,34 +248,6 @@ export default function SettingsSidebar() {
               break;
           }
 
-          const isDisabled = isItemDisabled(item);
-
-          if (isDisabled) {
-            return (
-              <Tooltip
-                key={item.label}
-                label={unavailableLabel}
-                position="right"
-                withArrow
-              >
-                <span
-                  className={classes.link}
-                  data-disabled
-                  role="link"
-                  aria-disabled="true"
-                  tabIndex={0}
-                  style={{
-                    opacity: 0.5,
-                    cursor: "not-allowed",
-                  }}
-                >
-                  <item.icon className={classes.linkIcon} stroke={2} />
-                  <span>{t(item.label)}</span>
-                </span>
-              </Tooltip>
-            );
-          }
-
           return (
             <Link
               onMouseEnter={prefetchHandler}
@@ -287,7 +262,13 @@ export default function SettingsSidebar() {
               }}
             >
               <item.icon className={classes.linkIcon} stroke={2} />
-              <span>{t(item.label)}</span>
+              <span>
+                {t(
+                  item.label === "Security & SSO" && !hasSso
+                    ? "Security"
+                    : item.label,
+                )}
+              </span>
             </Link>
           );
         })}
@@ -314,7 +295,9 @@ export default function SettingsSidebar() {
         <Text fw={500}>{t("Settings")}</Text>
       </Group>
 
-      <ScrollArea w="100%" scrollbarSize={5}>{menuItems}</ScrollArea>
+      <ScrollArea w="100%" scrollbarSize={5}>
+        {menuItems}
+      </ScrollArea>
 
       {!isCloud() && <AppVersion />}
 

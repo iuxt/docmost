@@ -1,3 +1,4 @@
+import { SearchConfigModule } from './integrations/search/search-config.module';
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
@@ -58,6 +59,7 @@ try {
     DatabaseModule,
     EnvironmentModule,
     EncryptionModule,
+    SearchConfigModule,
     RedisModule.forRootAsync({
       useClass: RedisConfigService,
     }),

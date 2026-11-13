@@ -42,7 +42,10 @@ const announcement: IAnnouncement = {
   content: {
     type: "doc",
     content: [
-      { type: "paragraph", content: [{ type: "text", text: "Planned maintenance" }] },
+      {
+        type: "paragraph",
+        content: [{ type: "text", text: "Planned maintenance" }],
+      },
     ],
   },
   isDismissible: false,
@@ -57,7 +60,13 @@ const announcement: IAnnouncement = {
 
 const page = (items: IAnnouncement[]) => ({
   items,
-  meta: { limit: 20, hasNextPage: false, hasPrevPage: false, nextCursor: null, prevCursor: null },
+  meta: {
+    limit: 20,
+    hasNextPage: false,
+    hasPrevPage: false,
+    nextCursor: null,
+    prevCursor: null,
+  },
 });
 
 // features: the loaded capabilities; leave undefined for "not loaded yet"
@@ -132,70 +141,34 @@ afterEach(() => {
 });
 
 describe("Announcements page", () => {
-  it("does not call the feature unavailable before the capabilities load", () => {
+  it("waits for capabilities before showing the page or requesting announcements", () => {
     renderPage();
     expect(screen.queryByText(UNAVAILABLE_ALERT)).toBeNull();
-    expect(newAnnouncementButton().disabled).toBe(false);
-  });
-
-  it("shows skeleton rows, not an empty list, while the capabilities load", () => {
-    renderPage();
-    expect(screen.queryByText("No active announcements")).toBeNull();
     expect(
-      screen
-        .getAllByRole("table", { hidden: true })
-        .map((table) => table.getAttribute("aria-busy")),
-    ).toEqual(["true"]);
+      screen.queryByRole("button", { name: "New announcement" }),
+    ).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(service.getAnnouncements).not.toHaveBeenCalled();
   });
 
-  it("says only one announcement shows at a time", () => {
-    renderPage();
+  it("removes the unavailable feature entirely and makes no list request", () => {
+    renderPage([]);
+    expect(screen.queryByText(UNAVAILABLE_ALERT)).toBeNull();
     expect(
-      screen.getByText("Show a banner at the top of every page. Only one can show at a time."),
-    ).toBeTruthy();
+      screen.queryByRole("button", { name: "New announcement" }),
+    ).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(service.getAnnouncements).not.toHaveBeenCalled();
   });
 
-  it("shows an unavailable message once the capabilities lack the feature, and still lists", async () => {
+  it("says only one announcement shows at a time when available", () => {
     vi.mocked(service.getAnnouncements).mockResolvedValue(page([]));
-    renderPage([]);
-    expect(screen.getByText(UNAVAILABLE_ALERT)).toBeTruthy();
-    expect(newAnnouncementButton().disabled).toBe(true);
-    expect(await screen.findByText("No active announcements")).toBeTruthy();
-    expect(service.getAnnouncements).toHaveBeenCalledWith({ limit: 20, query: "" });
-  });
-
-  it("lets an admin without the feature archive an announcement but not edit it", async () => {
-    vi.mocked(service.getAnnouncements).mockResolvedValue(page([announcement]));
-    vi.mocked(service.archiveAnnouncement).mockResolvedValue({
-      ...announcement,
-      status: "archived",
-    });
-    renderPage([]);
-    await screen.findByText("Maintenance window");
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Actions for Maintenance window" }),
-    );
+    renderPage([Feature.ANNOUNCEMENTS]);
     expect(
-      (await screen.findAllByRole("menuitem")).map((item) => item.textContent),
-    ).toEqual(["Archive"]);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
-
-    await waitFor(() =>
-      expect(vi.mocked(service.archiveAnnouncement).mock.calls[0][0]).toEqual({
-        announcementId: "a1",
-      }),
-    );
-  });
-
-  it("shows the empty list, not an error, when the server has no announcements routes", async () => {
-    vi.mocked(service.getAnnouncements).mockRejectedValue(
-      Object.assign(new Error("Not Found"), { response: { status: 404 } }),
-    );
-    renderPage([]);
-    await waitFor(() => expect(service.getAnnouncements).toHaveBeenCalled());
-    expect(await screen.findByText("No active announcements")).toBeTruthy();
-    expect(screen.queryByText("Failed to load announcements")).toBeNull();
+      screen.getByText(
+        "Show a banner at the top of every page. Only one can show at a time.",
+      ),
+    ).toBeTruthy();
   });
 
   it("lists the current announcements when available", async () => {
@@ -203,14 +176,21 @@ describe("Announcements page", () => {
     renderPage([Feature.ANNOUNCEMENTS]);
     expect(await screen.findByText("Maintenance window")).toBeTruthy();
     expect(service.getAnnouncements).toHaveBeenCalledTimes(1);
-    expect(service.getAnnouncements).toHaveBeenCalledWith({ limit: 20, query: "" });
+    expect(service.getAnnouncements).toHaveBeenCalledWith({
+      limit: 20,
+      query: "",
+    });
     expect(screen.queryByText(UNAVAILABLE_ALERT)).toBeNull();
     expect(newAnnouncementButton().disabled).toBe(false);
   });
 
   it("searches by what the admin types and shows the matches", async () => {
     vi.mocked(service.getAnnouncements).mockImplementation(async (params) =>
-      page(params.query ? [{ ...announcement, title: "Holiday hours" }] : [announcement]),
+      page(
+        params.query
+          ? [{ ...announcement, title: "Holiday hours" }]
+          : [announcement],
+      ),
     );
     renderPage([Feature.ANNOUNCEMENTS]);
     await screen.findByText("Maintenance window");
@@ -219,7 +199,9 @@ describe("Announcements page", () => {
       target: { value: "holiday" },
     });
 
-    expect(await screen.findByText("Holiday hours", {}, { timeout: 3000 })).toBeTruthy();
+    expect(
+      await screen.findByText("Holiday hours", {}, { timeout: 3000 }),
+    ).toBeTruthy();
     expect(service.getAnnouncements).toHaveBeenCalledWith({
       limit: 20,
       query: "holiday",
@@ -380,8 +362,11 @@ describe("Announcements page", () => {
     });
 
     expect(
-      queryClient.getQueryState([...ANNOUNCEMENTS_KEY, "list", { limit: 20, query: "" }])
-        ?.status,
+      queryClient.getQueryState([
+        ...ANNOUNCEMENTS_KEY,
+        "list",
+        { limit: 20, query: "" },
+      ])?.status,
     ).toBe("error");
     expect(screen.getByText("Maintenance window")).toBeTruthy();
     expect(screen.queryByText("Failed to load announcements")).toBeNull();
@@ -400,7 +385,9 @@ describe("Announcements page", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
 
     expect(
-      await screen.findByText("“Maintenance window” will be permanently deleted."),
+      await screen.findByText(
+        "“Maintenance window” will be permanently deleted.",
+      ),
     ).toBeTruthy();
   });
 

@@ -1,3 +1,4 @@
+import { TypesenseConfigService } from '../../../integrations/search/typesense-config.service';
 import {
   BadRequestException,
   ForbiddenException,
@@ -89,6 +90,7 @@ export class WorkspaceService {
     private wsService: WsService,
     private readonly collabAccessService: CollabAccessService,
     @InjectQueue(QueueName.SEARCH_QUEUE) private readonly searchQueue: Queue,
+    private readonly typesenseConfig: TypesenseConfigService,
   ) {}
 
   async findById(workspaceId: string) {
@@ -104,7 +106,7 @@ export class WorkspaceService {
     return {
       ...workspace,
       searchDriver: this.environmentService.getSearchDriver(workspace),
-      typesenseConfigured: this.environmentService.isTypesenseConfigured(),
+      typesenseConfigured: await this.typesenseConfig.isConfigured(workspaceId),
     };
   }
 
@@ -330,10 +332,10 @@ export class WorkspaceService {
   async update(workspaceId: string, updateWorkspaceDto: UpdateWorkspaceDto) {
     if (
       updateWorkspaceDto.searchDriver === 'typesense' &&
-      !this.environmentService.isTypesenseConfigured()
+      !(await this.typesenseConfig.isConfigured(workspaceId))
     ) {
       throw new BadRequestException(
-        'Typesense is not configured on this server. Contact your administrator.',
+        'Configure Typesense in workspace settings before enabling search.',
       );
     }
     if (updateWorkspaceDto.enforceSso) {
@@ -814,7 +816,7 @@ export class WorkspaceService {
     return {
       ...workspace,
       searchDriver: this.environmentService.getSearchDriver(workspace),
-      typesenseConfigured: this.environmentService.isTypesenseConfigured(),
+      typesenseConfigured: await this.typesenseConfig.isConfigured(workspaceId),
     };
   }
 

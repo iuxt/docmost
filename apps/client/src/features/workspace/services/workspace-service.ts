@@ -8,6 +8,8 @@ import {
   IPublicWorkspace,
   IInvitationLink,
   IVersion,
+  ITypesenseSettings,
+  IUpdateTypesenseSettings,
 } from "../types/workspace.types";
 import { IPagination, QueryParams } from "@/lib/types.ts";
 import { ISetupWorkspace } from "@/features/auth/types/auth.types.ts";
@@ -120,5 +122,30 @@ export async function createWorkspace(
 
 export async function getAppVersion(): Promise<IVersion> {
   const req = await api.post("/version");
+  return req.data;
+}
+
+export async function getTypesenseSettings(): Promise<ITypesenseSettings> {
+  const req = await api.post<ITypesenseSettings>("/workspace/search/settings");
+  return req.data;
+}
+
+export async function saveTypesenseSettings(
+  data: IUpdateTypesenseSettings,
+): Promise<ITypesenseSettings> {
+  const req = await api.post<ITypesenseSettings>(
+    "/workspace/search/settings/update",
+    data,
+  );
+  return req.data;
+}
+
+export async function testTypesenseSettings(
+  data: IUpdateTypesenseSettings,
+): Promise<{ success: boolean }> {
+  const req = await api.post<{ success: boolean }>(
+    "/workspace/search/settings/test",
+    data,
+  );
   return req.data;
 }

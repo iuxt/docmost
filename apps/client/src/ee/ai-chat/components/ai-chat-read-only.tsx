@@ -1,4 +1,4 @@
-import { Badge, Group, Text, Switch, Tooltip } from "@mantine/core";
+import { Group, Text, Switch } from "@mantine/core";
 import { useAtom } from "jotai";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
 import { useState } from "react";
@@ -7,22 +7,18 @@ import { updateWorkspace } from "@/features/workspace/services/workspace-service
 import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 
 export default function AiChatReadOnly() {
   const { t } = useTranslation();
   const hasAccess = useHasFeature(Feature.AI_CONTROLS);
+
+  if (!hasAccess) return null;
 
   return (
     <Group justify="space-between" wrap="nowrap" gap="xl">
       <div>
         <Group gap="xs" align="center">
           <Text size="md">{t("Read-only mode")}</Text>
-          {!hasAccess && (
-            <Badge variant="light" size="sm" radius="sm">
-              {t("Enterprise")}
-            </Badge>
-          )}
         </Group>
         <Text size="sm" c="dimmed">
           {t(
@@ -39,11 +35,8 @@ export default function AiChatReadOnly() {
 function AiChatReadOnlyToggle() {
   const { t } = useTranslation();
   const [workspace, setWorkspace] = useAtom(workspaceAtom);
-  const [checked, setChecked] = useState(
-    workspace?.settings?.ai?.chatReadOnly,
-  );
+  const [checked, setChecked] = useState(workspace?.settings?.ai?.chatReadOnly);
   const hasAccess = useHasFeature(Feature.AI_CONTROLS);
-  const unavailableLabel = useFeatureUnavailableLabel();
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.currentTarget.checked;
@@ -61,14 +54,13 @@ function AiChatReadOnlyToggle() {
     }
   };
 
+  if (!hasAccess) return null;
+
   return (
-    <Tooltip label={unavailableLabel} disabled={hasAccess} refProp="rootRef">
-      <Switch
-        defaultChecked={checked}
-        onChange={handleChange}
-        disabled={!hasAccess}
-        aria-label={t("Toggle AI Chat read-only mode")}
-      />
-    </Tooltip>
+    <Switch
+      defaultChecked={checked}
+      onChange={handleChange}
+      aria-label={t("Toggle AI Chat read-only mode")}
+    />
   );
 }

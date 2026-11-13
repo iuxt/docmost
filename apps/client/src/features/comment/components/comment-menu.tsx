@@ -1,4 +1,4 @@
-import { ActionIcon, Menu, Tooltip } from "@mantine/core";
+import { ActionIcon, Menu } from "@mantine/core";
 import {
   IconDots,
   IconEdit,
@@ -12,7 +12,6 @@ import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { getAppUrl } from "@/lib/config";
 
@@ -39,7 +38,6 @@ function CommentMenu({
 }: CommentMenuProps) {
   const { t } = useTranslation();
   const canResolve = useHasFeature(Feature.COMMENT_RESOLUTION);
-  const unavailableLabel = useFeatureUnavailableLabel();
   const clipboard = useClipboard({ timeout: 500 });
 
   const handleCopyLink = () => {
@@ -79,28 +77,20 @@ function CommentMenu({
             {t("Edit comment")}
           </Menu.Item>
         )}
-        {isParentComment &&
-          canManage &&
-          (canResolve ? (
-            <Menu.Item
-              onClick={onResolveComment}
-              leftSection={
-                isResolved ? (
-                  <IconCircleCheckFilled size={14} />
-                ) : (
-                  <IconCircleCheck size={14} />
-                )
-              }
-            >
-              {isResolved ? t("Re-open comment") : t("Resolve comment")}
-            </Menu.Item>
-          ) : (
-            <Tooltip label={unavailableLabel} position="left" withinPortal={false}>
-              <Menu.Item disabled leftSection={<IconCircleCheck size={14} />}>
-                {t("Resolve comment")}
-              </Menu.Item>
-            </Tooltip>
-          ))}
+        {isParentComment && canManage && canResolve && (
+          <Menu.Item
+            onClick={onResolveComment}
+            leftSection={
+              isResolved ? (
+                <IconCircleCheckFilled size={14} />
+              ) : (
+                <IconCircleCheck size={14} />
+              )
+            }
+          >
+            {isResolved ? t("Re-open comment") : t("Resolve comment")}
+          </Menu.Item>
+        )}
         <Menu.Item
           leftSection={<IconLink size={14} />}
           onClick={handleCopyLink}

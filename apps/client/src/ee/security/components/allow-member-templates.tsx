@@ -1,4 +1,4 @@
-import { Group, Text, Switch, Tooltip } from "@mantine/core";
+import { Group, Text, Switch } from "@mantine/core";
 import { useAtom } from "jotai";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
 import { useState } from "react";
@@ -7,10 +7,12 @@ import { updateWorkspace } from "@/features/workspace/services/workspace-service
 import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label.ts";
 
 export default function AllowMemberTemplates() {
+  const hasFeature = useHasFeature(Feature.TEMPLATES);
   const { t } = useTranslation();
+
+  if (!hasFeature) return null;
 
   return (
     <Group justify="space-between" wrap="nowrap" gap="xl">
@@ -35,7 +37,6 @@ function AllowMemberTemplatesToggle() {
     workspace?.settings?.templates?.allowMemberTemplates === true,
   );
   const hasTemplates = useHasFeature(Feature.TEMPLATES);
-  const unavailableLabel = useFeatureUnavailableLabel();
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.currentTarget.checked;
@@ -53,14 +54,13 @@ function AllowMemberTemplatesToggle() {
     }
   };
 
+  if (!hasTemplates) return null;
+
   return (
-    <Tooltip label={unavailableLabel} disabled={hasTemplates} refProp="rootRef">
-      <Switch
-        checked={checked}
-        onChange={handleChange}
-        disabled={!hasTemplates}
-        aria-label={t("Toggle allow members to create templates")}
-      />
-    </Tooltip>
+    <Switch
+      checked={checked}
+      onChange={handleChange}
+      aria-label={t("Toggle allow members to create templates")}
+    />
   );
 }

@@ -3,7 +3,6 @@ import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { isUUID } from 'class-validator';
 import { QueueJob, QueueName } from '../../integrations/queue/constants';
-import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { TypesenseService } from './typesense.service';
 
 @Processor(QueueName.SEARCH_QUEUE, { concurrency: 1 })
@@ -13,15 +12,11 @@ export class SearchQueueProcessor
 {
   private readonly logger = new Logger(SearchQueueProcessor.name);
 
-  constructor(
-    private readonly environment: EnvironmentService,
-    private readonly typesense: TypesenseService,
-  ) {
+  constructor(private readonly typesense: TypesenseService) {
     super();
   }
 
   async process(job: Job): Promise<void> {
-    if (!this.environment.isTypesenseConfigured()) return;
     switch (job.name) {
       case QueueJob.SEARCH_INDEX_PAGES:
         await this.typesense.reindexBatch(
@@ -30,7 +25,11 @@ export class SearchQueueProcessor
         );
         break;
       case QueueJob.PAGE_CREATED:
-        await this.typesense.syncPages(job.data.pageIds ?? [], true);
+        await this.typesense.syncPages(
+          job.data.pageIds ?? [],
+          true,
+          job.data.workspaceId,
+        );
         break;
       case QueueJob.PAGE_UPDATED:
       case QueueJob.PAGE_CONTENT_UPDATED:
@@ -40,7 +39,11 @@ export class SearchQueueProcessor
       case QueueJob.PAGE_DELETED:
         // Read current state even for deletion events: an older queued delete
         // must not remove a page that has since been restored.
-        await this.typesense.syncPages(job.data.pageIds ?? []);
+        await this.typesense.syncPages(
+          job.data.pageIds ?? [],
+          false,
+          job.data.workspaceId,
+        );
         break;
       case QueueJob.SPACE_DELETED:
       case QueueJob.WORKSPACE_DELETED: {
@@ -48,7 +51,10 @@ export class SearchQueueProcessor
           job.name === QueueJob.SPACE_DELETED ? 'spaceId' : 'workspaceId';
         const id = job.data[field];
         if (!isUUID(id)) throw new Error(`Invalid ${field}`);
-        await this.typesense.removeByFilter(`${field}:=${id}`);
+        await this.typesense.removeByFilter(
+          `${field}:=${id}`,
+          job.data.workspaceId,
+        );
         break;
       }
     }

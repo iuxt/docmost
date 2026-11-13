@@ -4,7 +4,7 @@ import { EventName } from '../../common/events/event.contants';
 import { InjectQueue } from '@nestjs/bullmq';
 import { QueueJob, QueueName } from '../../integrations/queue/constants';
 import { Queue } from 'bullmq';
-import { EnvironmentService } from '../../integrations/environment/environment.service';
+import { TypesenseConfigService } from '../../integrations/search/typesense-config.service';
 
 export class WorkspaceEvent {
   workspaceId: string;
@@ -15,7 +15,7 @@ export class WorkspaceListener {
   private readonly logger = new Logger(WorkspaceListener.name);
 
   constructor(
-    private readonly environmentService: EnvironmentService,
+    private readonly typesenseConfig: TypesenseConfigService,
     @InjectQueue(QueueName.SEARCH_QUEUE) private searchQueue: Queue,
     @InjectQueue(QueueName.AI_QUEUE) private aiQueue: Queue,
   ) {}
@@ -23,14 +23,14 @@ export class WorkspaceListener {
   @OnEvent(EventName.WORKSPACE_DELETED)
   async handlePageDeleted(event: WorkspaceEvent) {
     const { workspaceId } = event;
-    if (this.isTypesenseConfigured()) {
+    if (await this.isTypesenseConfigured(event.workspaceId)) {
       await this.searchQueue.add(QueueJob.WORKSPACE_DELETED, { workspaceId });
     }
 
     await this.aiQueue.add(QueueJob.WORKSPACE_DELETED, { workspaceId });
   }
 
-  isTypesenseConfigured(): boolean {
-    return this.environmentService.isTypesenseConfigured();
+  isTypesenseConfigured(workspaceId: string): Promise<boolean> {
+    return this.typesenseConfig.isConfigured(workspaceId);
   }
 }

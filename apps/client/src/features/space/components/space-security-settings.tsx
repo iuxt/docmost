@@ -1,9 +1,12 @@
-import { Text, Divider, Title } from "@mantine/core";
+import { Divider, Title } from "@mantine/core";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { ISpace } from "@/features/space/types/space.types.ts";
 import SpacePublicSharingToggle from "@/ee/security/components/space-public-sharing-toggle.tsx";
 import SpaceViewerCommentsToggle from "@/ee/security/components/space-viewer-comments-toggle.tsx";
+
+import { useHasFeature } from "@/ee/hooks/use-feature";
+import { Feature } from "@/ee/features";
 
 type SpaceSecuritySettingsProps = {
   space: ISpace;
@@ -16,7 +19,10 @@ export default function SpaceSecuritySettings({
 }: SpaceSecuritySettingsProps) {
   const { t } = useTranslation();
 
-  if (readOnly) return null;
+  const hasSharingControls = useHasFeature(Feature.SHARING_CONTROLS);
+  const hasViewerComments = useHasFeature(Feature.VIEWER_COMMENTS);
+
+  if (readOnly || (!hasSharingControls && !hasViewerComments)) return null;
 
   return (
     <div>
@@ -26,7 +32,7 @@ export default function SpaceSecuritySettings({
 
       <SpacePublicSharingToggle space={space} />
 
-      <Divider my="lg" />
+      {hasSharingControls && hasViewerComments && <Divider my="lg" />}
 
       <SpaceViewerCommentsToggle space={space} />
     </div>

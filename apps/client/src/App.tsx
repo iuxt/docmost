@@ -5,14 +5,20 @@ import WorkspaceLocaleLayout from "@/features/workspace/components/workspace-loc
 import { Error404 } from "@/components/ui/error-404.tsx";
 import { MAIN_CONTENT_ID } from "@/components/ui/skip-to-main.tsx";
 import { isCloud } from "@/lib/config.ts";
-import { lazyWithPrefetch, prefetchLazyComponents } from "@/lib/lazy-prefetch.ts";
+import {
+  lazyWithPrefetch,
+  prefetchLazyComponents,
+} from "@/lib/lazy-prefetch.ts";
 import { useTranslation } from "react-i18next";
 import { useRedirectToCloudSelect } from "@/ee/hooks/use-redirect-to-cloud-select.tsx";
+import { RequireFeature } from "@/ee/components/require-feature";
+import { Feature } from "@/ee/features";
 import { useTrackOrigin } from "@/hooks/use-track-origin";
 import AnnouncementBanners from "@/ee/announcement/components/announcement-banners.tsx";
 
-
-const SetupWorkspace = lazyWithPrefetch(() => import("@/pages/auth/setup-workspace.tsx"));
+const SetupWorkspace = lazyWithPrefetch(
+  () => import("@/pages/auth/setup-workspace.tsx"),
+);
 const LoginPage = lazyWithPrefetch(() => import("@/pages/auth/login"));
 const Home = lazyWithPrefetch(() => import("@/pages/dashboard/home"));
 const Page = lazyWithPrefetch(() => import("@/pages/page/page"), {
@@ -28,27 +34,55 @@ const WorkspaceSettings = lazyWithPrefetch(
   () => import("@/pages/settings/workspace/workspace-settings"),
 );
 const Groups = lazyWithPrefetch(() => import("@/pages/settings/group/groups"));
-const GroupInfo = lazyWithPrefetch(() => import("./pages/settings/group/group-info"));
-const Spaces = lazyWithPrefetch(() => import("@/pages/settings/space/spaces.tsx"));
+const GroupInfo = lazyWithPrefetch(
+  () => import("./pages/settings/group/group-info"),
+);
+const Spaces = lazyWithPrefetch(
+  () => import("@/pages/settings/space/spaces.tsx"),
+);
 const AccountPreferences = lazyWithPrefetch(
   () => import("@/pages/settings/account/account-preferences.tsx"),
 );
-const SpaceHome = lazyWithPrefetch(() => import("@/pages/space/space-home.tsx"));
-const PageRedirect = lazyWithPrefetch(() => import("@/pages/page/page-redirect.tsx"));
-const InviteSignup = lazyWithPrefetch(() => import("@/pages/auth/invite-signup.tsx"));
-const ForgotPassword = lazyWithPrefetch(() => import("@/pages/auth/forgot-password.tsx"));
-const PasswordReset = lazyWithPrefetch(() => import("./pages/auth/password-reset"));
-const Billing = lazyWithPrefetch(() => import("@/ee/billing/pages/billing.tsx"));
+const SpaceHome = lazyWithPrefetch(
+  () => import("@/pages/space/space-home.tsx"),
+);
+const PageRedirect = lazyWithPrefetch(
+  () => import("@/pages/page/page-redirect.tsx"),
+);
+const InviteSignup = lazyWithPrefetch(
+  () => import("@/pages/auth/invite-signup.tsx"),
+);
+const ForgotPassword = lazyWithPrefetch(
+  () => import("@/pages/auth/forgot-password.tsx"),
+);
+const PasswordReset = lazyWithPrefetch(
+  () => import("./pages/auth/password-reset"),
+);
+const Billing = lazyWithPrefetch(
+  () => import("@/ee/billing/pages/billing.tsx"),
+);
 const CloudLogin = lazyWithPrefetch(() => import("@/ee/pages/cloud-login.tsx"));
-const CreateWorkspace = lazyWithPrefetch(() => import("@/ee/pages/create-workspace.tsx"));
-const Security = lazyWithPrefetch(() => import("@/ee/security/pages/security.tsx"));
-const SharedPage = lazyWithPrefetch(() => import("@/pages/share/shared-page.tsx"));
-const PdfRenderPage = lazyWithPrefetch(() => import("@/ee/pdf-export/pdf-render-page.tsx"));
-const Shares = lazyWithPrefetch(() => import("@/pages/settings/shares/shares.tsx"));
+const CreateWorkspace = lazyWithPrefetch(
+  () => import("@/ee/pages/create-workspace.tsx"),
+);
+const Security = lazyWithPrefetch(
+  () => import("@/ee/security/pages/security.tsx"),
+);
+const SharedPage = lazyWithPrefetch(
+  () => import("@/pages/share/shared-page.tsx"),
+);
+const PdfRenderPage = lazyWithPrefetch(
+  () => import("@/ee/pdf-export/pdf-render-page.tsx"),
+);
+const Shares = lazyWithPrefetch(
+  () => import("@/pages/settings/shares/shares.tsx"),
+);
 const ShareLayout = lazyWithPrefetch(
   () => import("@/features/share/components/share-layout.tsx"),
 );
-const ShareRedirect = lazyWithPrefetch(() => import("@/pages/share/share-redirect.tsx"));
+const ShareRedirect = lazyWithPrefetch(
+  () => import("@/pages/share/share-redirect.tsx"),
+);
 const PublicSpacePage = lazyWithPrefetch(
   () => import("@/pages/public-space/public-space-page.tsx"),
 );
@@ -69,29 +103,44 @@ const MfaSetupRequiredPage = lazyWithPrefetch(() =>
     default: m.MfaSetupRequiredPage,
   })),
 );
-const SpaceTrash = lazyWithPrefetch(() => import("@/pages/space/space-trash.tsx"));
-const UserApiKeys = lazyWithPrefetch(() => import("@/ee/api-key/pages/user-api-keys"));
+const SpaceTrash = lazyWithPrefetch(
+  () => import("@/pages/space/space-trash.tsx"),
+);
+const UserApiKeys = lazyWithPrefetch(
+  () => import("@/ee/api-key/pages/user-api-keys"),
+);
 const WorkspaceApiKeys = lazyWithPrefetch(
   () => import("@/ee/api-key/pages/workspace-api-keys"),
 );
-const AiSettings = lazyWithPrefetch(() => import("@/ee/ai/pages/ai-settings.tsx"));
-const BasePage = lazyWithPrefetch(() => import("@/ee/base/pages/base-page.tsx"));
-const AuditLogs = lazyWithPrefetch(() => import("@/ee/audit/pages/audit-logs.tsx"));
+const AiSettings = lazyWithPrefetch(
+  () => import("@/ee/ai/pages/ai-settings.tsx"),
+);
+const BasePage = lazyWithPrefetch(
+  () => import("@/ee/base/pages/base-page.tsx"),
+);
+const AuditLogs = lazyWithPrefetch(
+  () => import("@/ee/audit/pages/audit-logs.tsx"),
+);
 const VerifiedPages = lazyWithPrefetch(
   () => import("@/ee/page-verification/pages/verified-pages.tsx"),
 );
 const Announcements = lazyWithPrefetch(
   () => import("@/ee/announcement/pages/announcements"),
 );
-const TemplateList = lazyWithPrefetch(() => import("@/ee/template/pages/template-list"));
+const TemplateList = lazyWithPrefetch(
+  () => import("@/ee/template/pages/template-list"),
+);
 const TemplateEditor = lazyWithPrefetch(
   () => import("@/ee/template/pages/template-editor"),
 );
-const FavoritesPage = lazyWithPrefetch(() => import("@/pages/favorites/favorites-page"));
+const FavoritesPage = lazyWithPrefetch(
+  () => import("@/pages/favorites/favorites-page"),
+);
 const AiChat = lazyWithPrefetch(() => import("@/ee/ai-chat/pages/ai-chat.tsx"));
-const VerifyEmail = lazyWithPrefetch(() => import("@/ee/pages/verify-email.tsx"));
+const VerifyEmail = lazyWithPrefetch(
+  () => import("@/ee/pages/verify-email.tsx"),
+);
 const LabelPage = lazyWithPrefetch(() => import("@/pages/label/label-page"));
-const OAuthConsent = lazyWithPrefetch(() => import("@/ee/oauth/pages/oauth-consent.tsx"));
 const Integrations = lazyWithPrefetch(
   () => import("@/features/integration/pages/integrations.tsx"),
 );
@@ -124,11 +173,7 @@ export default function App() {
           <Route path={"/forgot-password"} element={<ForgotPassword />} />
           <Route path={"/password-reset"} element={<PasswordReset />} />
           <Route path={"/login/mfa"} element={<MfaChallengePage />} />
-          <Route
-            path={"/login/mfa/setup"}
-            element={<MfaSetupRequiredPage />}
-          />
-          <Route path={"/oauth/consent"} element={<OAuthConsent />} />
+          <Route path={"/login/mfa/setup"} element={<MfaSetupRequiredPage />} />
 
           <Route element={<ShareLayout />}>
             <Route
@@ -178,30 +223,62 @@ export default function App() {
         <Route
           path={"/integrations/slack/link"}
           element={
-            <Navigate to="/settings/account/connections?connect=slack" replace />
+            <Navigate
+              to="/settings/account/connections?connect=slack"
+              replace
+            />
           }
         />
 
         <Route element={<Layout />}>
           <Route path={"/home"} element={<Home />} />
-          <Route path={"/ai"} element={<AiChat />} />
-          <Route path={"/ai/chat/:chatId"} element={<AiChat />} />
+          <Route
+            path={"/ai"}
+            element={
+              <RequireFeature feature={Feature.AI}>
+                <AiChat />
+              </RequireFeature>
+            }
+          />
+          <Route
+            path={"/ai/chat/:chatId"}
+            element={
+              <RequireFeature feature={Feature.AI}>
+                <AiChat />
+              </RequireFeature>
+            }
+          />
           <Route path={"/spaces"} element={<SpacesPage />} />
           <Route path={"/favorites"} element={<FavoritesPage />} />
           <Route path={"/labels/:labelName"} element={<LabelPage />} />
-          <Route path={"/templates"} element={<TemplateList />} />
+          <Route
+            path={"/templates"}
+            element={
+              <RequireFeature feature={Feature.TEMPLATES}>
+                <TemplateList />
+              </RequireFeature>
+            }
+          />
           <Route
             path={"/templates/:templateId"}
-            element={<TemplateEditor />}
+            element={
+              <RequireFeature feature={Feature.TEMPLATES}>
+                <TemplateEditor />
+              </RequireFeature>
+            }
           />
           <Route path={"/s/:spaceSlug"} element={<SpaceHome />} />
           <Route path={"/s/:spaceSlug/trash"} element={<SpaceTrash />} />
-          <Route
-            path={"/s/:spaceSlug/p/:pageSlug"}
-            element={<Page />}
-          />
+          <Route path={"/s/:spaceSlug/p/:pageSlug"} element={<Page />} />
 
-          <Route path={"/base/:pageId"} element={<BasePage />} />
+          <Route
+            path={"/base/:pageId"}
+            element={
+              <RequireFeature feature={Feature.BASES}>
+                <BasePage />
+              </RequireFeature>
+            }
+          />
 
           <Route path={"/settings"}>
             <Route path={"account/profile"} element={<AccountSettings />} />
@@ -209,31 +286,116 @@ export default function App() {
               path={"account/preferences"}
               element={<AccountPreferences />}
             />
-            <Route path={"account/api-keys"} element={<UserApiKeys />} />
+            <Route
+              path={"account/api-keys"}
+              element={
+                <RequireFeature feature={Feature.API_KEYS}>
+                  <UserApiKeys />
+                </RequireFeature>
+              }
+            />
             <Route
               path={"account/api-keys/authorized-apps"}
-              element={<UserApiKeys />}
+              element={
+                <RequireFeature feature={Feature.API_KEYS}>
+                  <UserApiKeys />
+                </RequireFeature>
+              }
             />
-            <Route path={"account/connections"} element={<Connections />} />
+            <Route
+              path={"account/connections"}
+              element={
+                <RequireFeature feature={Feature.INTEGRATIONS}>
+                  <Connections />
+                </RequireFeature>
+              }
+            />
             <Route path={"workspace"} element={<WorkspaceSettings />} />
             <Route path={"members"} element={<WorkspaceMembers />} />
-            <Route path={"api-keys"} element={<WorkspaceApiKeys />} />
+            <Route
+              path={"api-keys"}
+              element={
+                <RequireFeature feature={Feature.API_KEYS}>
+                  <WorkspaceApiKeys />
+                </RequireFeature>
+              }
+            />
             <Route path={"groups"} element={<Groups />} />
             <Route path={"groups/:groupId"} element={<GroupInfo />} />
             <Route path={"spaces"} element={<Spaces />} />
             <Route path={"sharing"} element={<Shares />} />
-            <Route path={"security"} element={<Security />} />
-            <Route path={"ai"} element={<AiSettings />} />
-            <Route path={"ai/mcp"} element={<AiSettings />} />
-            <Route path={"audit"} element={<AuditLogs />} />
-            <Route path={"audit/siem"} element={<AuditLogs />} />
+            <Route
+              path={"security"}
+              element={
+                <RequireFeature feature={Feature.SECURITY_SETTINGS}>
+                  <Security />
+                </RequireFeature>
+              }
+            />
+            <Route
+              path={"ai"}
+              element={
+                <RequireFeature feature={Feature.AI}>
+                  <AiSettings />
+                </RequireFeature>
+              }
+            />
+            <Route
+              path={"ai/mcp"}
+              element={
+                <RequireFeature feature={Feature.MCP}>
+                  <AiSettings />
+                </RequireFeature>
+              }
+            />
+            <Route
+              path={"audit"}
+              element={
+                <RequireFeature feature={Feature.AUDIT_LOGS}>
+                  <AuditLogs />
+                </RequireFeature>
+              }
+            />
+            <Route
+              path={"audit/siem"}
+              element={
+                <RequireFeature feature={Feature.SIEM}>
+                  <AuditLogs />
+                </RequireFeature>
+              }
+            />
             <Route
               path={"siem"}
-              element={<Navigate to="/settings/audit/siem" replace />}
+              element={
+                <RequireFeature feature={Feature.SIEM}>
+                  <Navigate to="/settings/audit/siem" replace />
+                </RequireFeature>
+              }
             />
-            <Route path={"verifications"} element={<VerifiedPages />} />
-            <Route path={"integrations"} element={<Integrations />} />
-            <Route path={"announcements"} element={<Announcements />} />
+            <Route
+              path={"verifications"}
+              element={
+                <RequireFeature feature={Feature.PAGE_VERIFICATION}>
+                  <VerifiedPages />
+                </RequireFeature>
+              }
+            />
+            <Route
+              path={"integrations"}
+              element={
+                <RequireFeature feature={Feature.INTEGRATIONS}>
+                  <Integrations />
+                </RequireFeature>
+              }
+            />
+            <Route
+              path={"announcements"}
+              element={
+                <RequireFeature feature={Feature.ANNOUNCEMENTS}>
+                  <Announcements />
+                </RequireFeature>
+              }
+            />
             {isCloud() && <Route path={"billing"} element={<Billing />} />}
           </Route>
         </Route>

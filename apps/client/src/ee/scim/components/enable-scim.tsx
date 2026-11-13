@@ -1,4 +1,4 @@
-import { Group, Text, Switch, Tooltip } from "@mantine/core";
+import { Group, Text, Switch } from "@mantine/core";
 import { useAtom } from "jotai";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
 import React, { useState } from "react";
@@ -7,14 +7,12 @@ import { updateWorkspace } from "@/features/workspace/services/workspace-service
 import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature.ts";
 import { Feature } from "@/ee/features.ts";
-import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label.ts";
 
 export default function EnableScim() {
   const { t } = useTranslation();
   const [workspace, setWorkspace] = useAtom(workspaceAtom);
   const [checked, setChecked] = useState(workspace?.isScimEnabled ?? false);
   const hasAccess = useHasFeature(Feature.SCIM);
-  const unavailableLabel = useFeatureUnavailableLabel();
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.currentTarget.checked;
@@ -30,6 +28,8 @@ export default function EnableScim() {
     }
   };
 
+  if (!hasAccess) return null;
+
   return (
     <Group justify="space-between" wrap="nowrap" gap="xl">
       <div>
@@ -41,15 +41,12 @@ export default function EnableScim() {
         </Text>
       </div>
 
-      <Tooltip label={unavailableLabel} disabled={hasAccess} refProp="rootRef">
-        <Switch
-          labelPosition="left"
-          defaultChecked={checked}
-          onChange={handleChange}
-          disabled={!hasAccess}
-          aria-label={t("Toggle SCIM provisioning")}
-        />
-      </Tooltip>
+      <Switch
+        labelPosition="left"
+        defaultChecked={checked}
+        onChange={handleChange}
+        aria-label={t("Toggle SCIM provisioning")}
+      />
     </Group>
   );
 }
