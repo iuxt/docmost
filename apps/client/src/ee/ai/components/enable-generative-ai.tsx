@@ -7,14 +7,14 @@ import { updateWorkspace } from "@/features/workspace/services/workspace-service
 import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 
 export default function EnableGenerativeAi() {
   const { t } = useTranslation();
   const [workspace, setWorkspace] = useAtom(workspaceAtom);
   const [checked, setChecked] = useState(workspace?.settings?.ai?.generative);
   const hasAccess = useHasFeature(Feature.AI);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.currentTarget.checked;
@@ -41,7 +41,7 @@ export default function EnableGenerativeAi() {
         </Text>
       </div>
 
-      <Tooltip label={upgradeLabel} disabled={hasAccess} refProp="rootRef">
+      <Tooltip label={unavailableLabel} disabled={hasAccess} refProp="rootRef">
         <Switch
           defaultChecked={checked}
           onChange={handleChange}

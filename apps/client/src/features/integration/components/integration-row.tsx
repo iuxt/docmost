@@ -14,15 +14,7 @@ import {
 } from "../types/integration.types";
 import { getIntegrationIcon } from "./integration-icons";
 import { useHasFeature } from "@/ee/hooks/use-feature";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
-import { Feature } from "@/ee/features";
-import { isCloud } from "@/lib/config.ts";
-
-// Keep in sync with apps/server/src/ee/licence/feature-registry.ts.
-const MINIMUM_PLAN: Record<string, { selfHosted: string; cloud: string }> = {
-  [Feature.INTEGRATIONS]: { selfHosted: "Business", cloud: "Standard" },
-  [Feature.INTEGRATIONS_ADVANCED]: { selfHosted: "Enterprise", cloud: "Business" },
-};
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 
 type IntegrationRowProps = {
   definition: IntegrationDefinition;
@@ -41,8 +33,7 @@ export default function IntegrationRow({
   const isInstalled = !!installation;
   const hasAccess = useHasFeature(definition.requiresFeature ?? "");
   const locked = !!definition.requiresFeature && !hasAccess;
-  const upgradeLabel = useUpgradeLabel();
-  const minimumPlan = MINIMUM_PLAN[definition.requiresFeature ?? ""];
+  const unavailableLabel = useFeatureUnavailableLabel();
 
   return (
     <Box
@@ -62,9 +53,7 @@ export default function IntegrationRow({
               </Text>
               {locked && (
                 <Badge size="xs" variant="light" color="violet">
-                  {minimumPlan
-                    ? t(isCloud() ? minimumPlan.cloud : minimumPlan.selfHosted)
-                    : t("Paid")}
+                  {t("Unavailable")}
                 </Badge>
               )}
             </Group>
@@ -84,7 +73,7 @@ export default function IntegrationRow({
               {t("Uninstall")}
             </Button>
           ) : (
-            <Tooltip label={upgradeLabel} disabled={!locked}>
+            <Tooltip label={unavailableLabel} disabled={!locked}>
               <Button
                 size="xs"
                 variant="light"

@@ -14,7 +14,7 @@ import { updateWorkspace } from "@/features/workspace/services/workspace-service
 import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label.ts";
 
 type RetentionUnit = "days" | "months" | "years";
 
@@ -42,7 +42,7 @@ function retentionToDays(amount: number, unit: RetentionUnit): number {
 export default function TrashRetention() {
   const { t } = useTranslation();
   const hasRetention = useHasFeature(Feature.RETENTION);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
   const [workspace, setWorkspace] = useAtom(workspaceAtom);
 
   const currentDays = workspace?.trashRetentionDays ?? DEFAULT_RETENTION_DAYS;
@@ -107,7 +107,7 @@ export default function TrashRetention() {
         {t("Pages in trash will be permanently deleted after this period.")}
       </Text>
 
-      <Tooltip label={upgradeLabel} disabled={hasRetention}>
+      <Tooltip label={unavailableLabel} disabled={hasRetention}>
         <Group gap="xs" wrap="nowrap" maw={320}>
           <NumberInput
             value={retentionAmount}

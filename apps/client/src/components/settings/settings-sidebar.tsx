@@ -24,15 +24,14 @@ import { useTranslation } from "react-i18next";
 import { isCloud } from "@/lib/config.ts";
 import useUserRole from "@/hooks/use-user-role.tsx";
 import { useAtom } from "jotai";
-import { entitlementAtom } from "@/ee/entitlement/entitlement-atom";
+import { capabilitiesAtom } from "@/features/workspace/capabilities/capabilities-atom";
 import { Feature } from "@/ee/features";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 import {
   prefetchApiKeyManagement,
   prefetchApiKeys,
   prefetchBilling,
   prefetchGroups,
-  prefetchLicense,
   prefetchScimTokens,
   prefetchShares,
   prefetchSpaces,
@@ -113,11 +112,11 @@ const groupedData: DataGroup[] = [
         role: "admin",
       },
       { label: "Public sharing", icon: IconWorld, path: "/settings/sharing" },
-      // No feature gate: without a license the page lists read-only, with archive and delete
       {
         label: "Announcements",
         icon: IconSpeakerphone,
         path: "/settings/announcements",
+        feature: Feature.ANNOUNCEMENTS,
         role: "admin",
       },
       {
@@ -137,12 +136,14 @@ const groupedData: DataGroup[] = [
         label: "AI settings",
         icon: IconSparkles,
         path: "/settings/ai",
+        feature: Feature.AI,
         role: "admin",
       },
       {
         label: "Integrations",
         icon: IconPlug,
         path: "/settings/integrations",
+        feature: Feature.INTEGRATIONS,
         role: "admin",
       },
       {
@@ -154,16 +155,6 @@ const groupedData: DataGroup[] = [
       },
     ],
   },
-  {
-    heading: "System",
-    items: [
-      {
-        label: "License & Edition",
-        icon: IconKey,
-        path: "/settings/license",
-      },
-    ],
-  },
 ];
 
 export default function SettingsSidebar() {
@@ -172,8 +163,8 @@ export default function SettingsSidebar() {
   const [active, setActive] = useState(location.pathname);
   const { goBack } = useSettingsNavigation();
   const { isAdmin, isOwner } = useUserRole();
-  const [entitlements] = useAtom(entitlementAtom);
-  const upgradeLabel = useUpgradeLabel();
+  const [capabilities] = useAtom(capabilitiesAtom);
+  const unavailableLabel = useFeatureUnavailableLabel();
   const [mobileSidebarOpened] = useAtom(mobileSidebarAtom);
   const toggleMobileSidebar = useToggleSidebar(mobileSidebarAtom);
 
@@ -184,7 +175,7 @@ export default function SettingsSidebar() {
   const { data: installedIntegrations } = useInstalledIntegrations();
 
   const hasFeature = (f: string) =>
-    entitlements?.features?.includes(f) ?? false;
+    capabilities?.features?.includes(f) ?? false;
 
   const canShowItem = (item: DataItem) => {
     if (item.env === "cloud" && !isCloud()) return false;
@@ -203,10 +194,6 @@ export default function SettingsSidebar() {
   };
 
   const menuItems = groupedData.map((group) => {
-    if (group.heading === "System" && (!isAdmin || isCloud())) {
-      return null;
-    }
-
     return (
       <div key={group.heading}>
         <Text c="dimmed" className={classes.linkHeader}>
@@ -231,15 +218,12 @@ export default function SettingsSidebar() {
             case "Billing":
               prefetchHandler = prefetchBilling;
               break;
-            case "License & Edition":
-              if (entitlements?.tier !== "free") {
-                prefetchHandler = prefetchLicense;
-              }
-              break;
             case "Security & SSO":
               prefetchHandler = () => {
-                prefetchSsoProviders();
-                prefetchScimTokens();
+                if (hasFeature(Feature.SSO_CUSTOM) || hasFeature(Feature.SSO_GOOGLE)) {
+                  prefetchSsoProviders();
+                }
+                if (hasFeature(Feature.SCIM)) prefetchScimTokens();
               };
               break;
             case "Public sharing":
@@ -267,7 +251,7 @@ export default function SettingsSidebar() {
             return (
               <Tooltip
                 key={item.label}
-                label={upgradeLabel}
+                label={unavailableLabel}
                 position="right"
                 withArrow
               >

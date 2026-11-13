@@ -61,7 +61,7 @@ export default function SiemStreamingPanel() {
     <>
       {!hasFeature && (
         <Alert icon={<IconInfoCircle size={16} />} color="yellow" mb="md">
-          {t("SIEM streaming requires an Enterprise license.")}
+          {t("SIEM streaming is not available on this instance.")}
         </Alert>
       )}
 

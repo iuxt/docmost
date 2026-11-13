@@ -44,7 +44,7 @@ type AnnouncementTableProps = {
   announcements: IAnnouncement[];
   isLoading: boolean;
   emptyMessage: string;
-  // Left out once the license lapses, which leaves archive and delete
+  // Unavailable features leave archive and delete actions accessible.
   onEdit?: (announcement: IAnnouncement) => void;
   onArchive: (announcement: IAnnouncement) => void;
   onUnarchive?: (announcement: IAnnouncement) => void;

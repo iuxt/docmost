@@ -36,10 +36,8 @@ export class UserController {
       workspace.id,
     );
 
-    const { licenseKey, ...rest } = workspace;
-
     const workspaceInfo = {
-      ...rest,
+      ...workspace,
       memberCount,
       searchDriver: this.environmentService.getSearchDriver(workspace),
       typesenseConfigured: this.environmentService.isTypesenseConfigured(),

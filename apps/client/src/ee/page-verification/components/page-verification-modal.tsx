@@ -22,7 +22,7 @@ import { usePageVerificationInfoQuery } from "@/ee/page-verification/queries/pag
 import { reviewChangesAtom } from "@/ee/page-verification/atoms/review-changes-atom";
 import { useReviewChangesDeepLink } from "@/ee/page-verification/hooks/use-review-changes-deep-link";
 import { useHasFeature } from "@/ee/hooks/use-feature";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 import { Feature } from "@/ee/features";
 import { SetupVerificationForm } from "./setup-verification-form";
 import { ManageVerificationForm } from "./manage-verification-form";
@@ -104,7 +104,7 @@ export function PageVerificationBadge({
     isLoading,
     refetch: refetchVerificationInfo,
   } = usePageVerificationInfoQuery(hasVerificationFeature ? pageId : undefined);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
 
   useReviewChangesDeepLink({
     pageId: hasVerificationFeature ? pageId : undefined,
@@ -115,7 +115,7 @@ export function PageVerificationBadge({
   if (!pageId) return null;
   if (!hasVerificationFeature) {
     if (readOnly) return null;
-    const lockedLabel = `${t("Add verification")} — ${upgradeLabel}`;
+    const lockedLabel = `${t("Add verification")} — ${unavailableLabel}`;
     // Use ActionIcon (a real <button>) instead of a ThemeIcon so the tooltip
     // is reachable on keyboard focus, and screen readers announce the upgrade
     // hint via the accessible name. Click is a no-op since the feature is
@@ -202,7 +202,7 @@ export function PageVerificationMenuItem({
 }: PageVerificationMenuItemProps) {
   const { t } = useTranslation();
   const hasVerificationFeature = useHasFeature(Feature.PAGE_VERIFICATION);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
 
   const { data: verificationInfo } = usePageVerificationInfoQuery(
     hasVerificationFeature ? pageId : undefined,
@@ -226,7 +226,7 @@ export function PageVerificationMenuItem({
 
   if (!hasVerificationFeature) {
     return (
-      <Tooltip label={upgradeLabel} position="left" withinPortal={false}>
+      <Tooltip label={unavailableLabel} position="left" withinPortal={false}>
         {menuItem}
       </Tooltip>
     );

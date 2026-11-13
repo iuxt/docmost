@@ -17,7 +17,7 @@ import {
 import { IPublicSpaceAppearance } from "@/features/public-space/types/public-space.types.ts";
 import { usePublishSpaceMutation } from "@/features/public-space/queries/public-space-query.ts";
 import { useHasFeature } from "@/ee/hooks/use-feature.ts";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label.ts";
 import { Feature } from "@/ee/features.ts";
 import classes from "./appearance-settings.module.css";
 
@@ -33,7 +33,7 @@ export default function AppearanceSettings({
   const { t } = useTranslation();
   const publishMutation = usePublishSpaceMutation();
   const hasAppearance = useHasFeature(Feature.PUBLIC_SPACE_APPEARANCE);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
 
   const matchedPreset = matchDocsPreset(appearance);
   const [customOpen, setCustomOpen] = useState(matchedPreset === null);
@@ -92,7 +92,7 @@ export default function AppearanceSettings({
       </Text>
 
       <Tooltip
-        label={upgradeLabel}
+        label={unavailableLabel}
         disabled={hasAppearance}
         position="top-start"
       >

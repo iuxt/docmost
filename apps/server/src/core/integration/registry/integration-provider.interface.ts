@@ -111,7 +111,7 @@ export type IntegrationDefinition = {
   unfurlPatterns?: UnfurlPattern[];
   // Not installable, but existing installations keep unfurling.
   hidden?: boolean;
-  // License feature the install is gated on; unset = free.
+  // Optional capability required by the provider implementation.
   requiresFeature?: FeatureKey;
 };
 

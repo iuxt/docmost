@@ -35,7 +35,7 @@ import { useTranslation } from "react-i18next";
 import { insertBaseEmbedBlock } from "@/features/editor/components/base-embed/insert-base-embed";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 
 interface Props {
   editor: Editor;
@@ -45,7 +45,7 @@ interface Props {
 export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
   const { t, i18n } = useTranslation();
   const hasBases = useHasFeature(Feature.BASES);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
 
   const setEmbed = (provider: string) =>
     editor.chain().focus().setEmbed({ provider }).run();
@@ -119,7 +119,7 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
           </Menu.Item>
         )}
         {!templateMode && (
-          <Tooltip label={upgradeLabel} disabled={hasBases} position="right">
+          <Tooltip label={unavailableLabel} disabled={hasBases} position="right">
             <Menu.Item
               leftSection={<IconTable size={16} />}
               aria-disabled={!hasBases}
@@ -128,7 +128,7 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
               rightSection={
                 !hasBases && (
                   <Badge size="xs" variant="light" color="gray">
-                    {t("Upgrade")}
+                    {t("Unavailable")}
                   </Badge>
                 )
               }
@@ -141,7 +141,7 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
           </Tooltip>
         )}
         {!templateMode && (
-          <Tooltip label={upgradeLabel} disabled={hasBases} position="right">
+          <Tooltip label={unavailableLabel} disabled={hasBases} position="right">
             <Menu.Item
               leftSection={<IconLayoutKanban size={16} />}
               aria-disabled={!hasBases}
@@ -150,7 +150,7 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
               rightSection={
                 !hasBases && (
                   <Badge size="xs" variant="light" color="gray">
-                    {t("Upgrade")}
+                    {t("Unavailable")}
                   </Badge>
                 )
               }

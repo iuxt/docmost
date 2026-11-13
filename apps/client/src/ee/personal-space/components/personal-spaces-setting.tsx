@@ -7,7 +7,7 @@ import { updateWorkspace } from "@/features/workspace/services/workspace-service
 import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label.ts";
 
 export default function PersonalSpacesSetting() {
   const { t } = useTranslation();
@@ -33,7 +33,7 @@ function PersonalSpacesToggle() {
     workspace?.settings?.spaces?.allowPersonal === true,
   );
   const hasPersonalSpaces = useHasFeature(Feature.PERSONAL_SPACES);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.currentTarget.checked;
@@ -52,7 +52,7 @@ function PersonalSpacesToggle() {
   };
 
   return (
-    <Tooltip label={upgradeLabel} disabled={hasPersonalSpaces} refProp="rootRef">
+    <Tooltip label={unavailableLabel} disabled={hasPersonalSpaces} refProp="rootRef">
       <Switch
         checked={checked}
         onChange={handleChange}

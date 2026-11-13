@@ -33,7 +33,7 @@ import { getFileImportSizeLimit } from "@/lib/config.ts";
 import { formatBytes } from "@/lib";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 import { getFileTaskById } from "@/features/file-task/services/file-task-service.ts";
 import { queryClient } from "@/main.tsx";
 import { useQueryEmit } from "@/features/websocket/use-query-emit.ts";
@@ -99,7 +99,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
   const canUseConfluence = useHasFeature(Feature.CONFLUENCE_IMPORT);
   const canUseDocx = useHasFeature(Feature.DOCX_IMPORT);
   const canUsePdf = useHasFeature(Feature.PDF_IMPORT);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
 
   const handleZipUpload = async (selectedFile: File, source: string) => {
     if (!selectedFile) {
@@ -385,7 +385,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
         >
           {(props) => (
             <Tooltip
-              label={upgradeLabel}
+              label={unavailableLabel}
               disabled={canUseDocx}
             >
               <Button
@@ -412,7 +412,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
         >
           {(props) => (
             <Tooltip
-              label={upgradeLabel}
+              label={unavailableLabel}
               disabled={canUsePdf}
             >
               <Button
@@ -457,7 +457,7 @@ function ImportFormatSelection({ spaceId, onClose }: ImportFormatSelection) {
         >
           {(props) => (
             <Tooltip
-              label={upgradeLabel}
+              label={unavailableLabel}
               disabled={canUseConfluence}
             >
               <Button

@@ -49,12 +49,12 @@ npm run docker-push -- --bump major # 1.2.3 -> 2.0.0
 npm run docker-push -- --version 1.2.3 # Set all three package versions and publish 1.2.3
 ```
 
-`--bump` and `--version` cannot be combined with each other or `ITIER_VERSION`.
+`--bump` and `--version` cannot be combined with each other or `VERSION`.
 Version components must be nonnegative integers without leading zeros.
 
 `npm run docker-build` builds the current version without incrementing it.
 The manual `bump-version`, `bump-minor`, and `bump-major` commands remain available.
-Set `ITIER_VERSION` to override the image tag and skip the automatic increment
+Set `VERSION` to override the image tag and skip the automatic increment
 (for example, when republishing an existing version). `config.image_prefix` is
 the registry/namespace before `/docmost` and defaults to `docmost`.
 `IMAGE_PREFIX`, `DEPLOY_HOST`, and `DEPLOY_DIR` environment variables override
@@ -76,6 +76,21 @@ image. BuildKit caches the pnpm store between builds, and the runtime image keep
 dependencies in a separate layer from the compiled app. Keep the same builder and
 its cache for faster subsequent releases; the first build still downloads dependencies.
 
+Both Docker commands also import and export build layers in the host directory
+`.buildx-cache/` using `mode=max`, including intermediate dependency and build
+stages. This directory is excluded from Git and the Docker build context. Set
+`DOCKER_CACHE_DIR` to an absolute path to store it elsewhere, for example:
+
+```sh
+DOCKER_CACHE_DIR="$HOME/.cache/docmost-buildx" npm run docker-push -- \
+  --allow="fs=$HOME/.cache/docmost-buildx"
+```
+
+The pnpm cache mounts remain in BuildKit's own persistent storage; local layer
+exports do not include their contents. Keep the same builder to reuse downloaded
+packages when dependencies change. Local layer exports retain older blobs and
+can grow over time; remove the cache directory between builds to reclaim space.
+
 If all deployment servers use one architecture, build and push only that platform:
 
 ```sh
@@ -87,11 +102,19 @@ For registry compatibility (including Alibaba ACR), build attestations
 (provenance and SBOM) are disabled, and `docker-push` exports Docker media types
 with OCI artifact output disabled. Both image architectures are still included.
 
-Deploy requires SSH access to a server with Docker Compose and an existing
-deployment directory containing this repository's updated `docker-compose.yml`
-and the configured environment/secrets. The server must have registry access.
-It pulls the selected image and recreates only the `docmost` service. Preview
-the SSH command with `pnpm run deploy --dry-run`.
+Deploy requires SSH access, registry access, and an existing deployment directory
+with configured environment/secrets. It detects the deployment method:
+
+- **Docker Compose:** requires a standard Compose filename in `DEPLOY_DIR`, with
+  the Docmost image using `${IMAGE_PREFIX}/docmost:${VERSION}`. It validates the
+  configuration, pulls the selected image, and recreates only `docmost`.
+- **Nebula:** requires `run.sh`, `.env`, and the sibling `public/app.sh` and
+  `public/image_config.py` helpers. It pulls the selected image first, updates
+  only `IMAGE_NAME` and `IMAGE_VERSION` in the service's `.env`, then runs
+  `bash ./run.sh`, including that script's configured dependency hooks.
+
+`VERSION` overrides the image tag for builds and deployment. Preview the remote
+commands with `npm run deploy -- --dry-run`.
 
 ### Typesense search
 

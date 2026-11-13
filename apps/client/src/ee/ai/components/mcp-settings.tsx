@@ -19,7 +19,7 @@ import { updateWorkspace } from "@/features/workspace/services/workspace-service
 import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 import { getAppUrl } from "@/lib/config.ts";
 import { IconCheck, IconCopy, IconInfoCircle } from "@tabler/icons-react";
 import { CopyButton } from "@/components/common/copy-button.tsx";
@@ -29,7 +29,7 @@ export default function McpSettings() {
   const [workspace, setWorkspace] = useAtom(workspaceAtom);
   const [checked, setChecked] = useState(workspace?.settings?.ai?.mcp);
   const hasAccess = useHasFeature(Feature.MCP);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
 
   const mcpUrl = `${getAppUrl()}/mcp`;
 
@@ -50,10 +50,8 @@ export default function McpSettings() {
   return (
     <Stack gap="lg">
       {!hasAccess && (
-        <Alert icon={<IconInfoCircle />} title={upgradeLabel} color="blue">
-          {t(
-            "MCP is only available in the Docmost enterprise edition. Contact sales@docmost.com.",
-          )}
+        <Alert icon={<IconInfoCircle />} title={unavailableLabel} color="blue">
+          {t("MCP is not available on this instance.")}
         </Alert>
       )}
 
@@ -73,7 +71,7 @@ export default function McpSettings() {
           </Text>
         </div>
 
-        <Tooltip label={upgradeLabel} disabled={hasAccess} refProp="rootRef">
+        <Tooltip label={unavailableLabel} disabled={hasAccess} refProp="rootRef">
           <Switch
             defaultChecked={checked}
             onChange={handleChange}
@@ -161,7 +159,7 @@ function McpEnforceOauthSetting() {
   const [workspace, setWorkspace] = useAtom(workspaceAtom);
   const [checked, setChecked] = useState(workspace?.settings?.ai?.enforceMcpOauth);
   const hasAccess = useHasFeature(Feature.MCP_CONTROLS);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.currentTarget.checked;
@@ -197,7 +195,7 @@ function McpEnforceOauthSetting() {
         </Text>
       </div>
 
-      <Tooltip label={upgradeLabel} disabled={hasAccess} refProp="rootRef">
+      <Tooltip label={unavailableLabel} disabled={hasAccess} refProp="rootRef">
         <Switch
           defaultChecked={checked}
           onChange={handleChange}

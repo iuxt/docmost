@@ -8,7 +8,7 @@ import { ISpace } from "@/features/space/types/space.types.ts";
 import { useUpdateSpaceMutation } from "@/features/space/queries/space-query.ts";
 import { useHasFeature } from "@/ee/hooks/use-feature.ts";
 import { Feature } from "@/ee/features.ts";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label.ts";
 
 type SpacePublicSharingToggleProps = {
   space: ISpace;
@@ -21,7 +21,7 @@ export default function SpacePublicSharingToggle({
   const [workspace] = useAtom(workspaceAtom);
   const workspaceDisabled = workspace?.settings?.sharing?.disabled === true;
   const hasSharingControls = useHasFeature(Feature.SHARING_CONTROLS);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
   const isDisabled = !hasSharingControls || workspaceDisabled;
   const [checked, setChecked] = useState(
     space.settings?.sharing?.disabled === true,
@@ -74,7 +74,7 @@ export default function SpacePublicSharingToggle({
         </Text>
       </div>
       <Tooltip
-        label={!hasSharingControls ? upgradeLabel : t("Public sharing is disabled at the workspace level")}
+        label={!hasSharingControls ? unavailableLabel : t("Public sharing is disabled at the workspace level")}
         disabled={!isDisabled}
         refProp="rootRef"
       >

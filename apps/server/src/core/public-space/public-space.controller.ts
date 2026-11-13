@@ -30,7 +30,7 @@ import {
   SpaceCaslAction,
   SpaceCaslSubject,
 } from '../casl/interfaces/space-ability.type';
-import { LicenseCheckService } from '../../integrations/environment/license-check.service';
+import { FeatureService } from '../../integrations/environment/feature.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 import {
@@ -49,7 +49,7 @@ export class PublicSpaceController {
     private readonly publicSpaceRepo: PublicSpaceRepo,
     private readonly spaceRepo: SpaceRepo,
     private readonly spaceAbility: SpaceAbilityFactory,
-    private readonly licenseCheckService: LicenseCheckService,
+    private readonly featureService: FeatureService,
     private readonly environmentService: EnvironmentService,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
@@ -90,7 +90,7 @@ export class PublicSpaceController {
     );
     return {
       ...info,
-      features: this.publicFeatures(workspace),
+      features: this.publicFeatures(),
     };
   }
 
@@ -102,7 +102,7 @@ export class PublicSpaceController {
       await this.publicSpaceService.getPublicSpaceDirectory(workspace);
     return {
       ...directory,
-      features: this.publicFeatures(workspace),
+      features: this.publicFeatures(),
     };
   }
 
@@ -119,7 +119,7 @@ export class PublicSpaceController {
     );
     return {
       ...treeData,
-      features: this.publicFeatures(workspace),
+      features: this.publicFeatures(),
     };
   }
 
@@ -138,7 +138,7 @@ export class PublicSpaceController {
     );
     return {
       ...pageData,
-      features: this.publicFeatures(workspace),
+      features: this.publicFeatures(),
     };
   }
 
@@ -156,11 +156,8 @@ export class PublicSpaceController {
     );
   }
 
-  private publicFeatures(workspace: Workspace): string[] {
-    const features = this.licenseCheckService.resolveFeatures(
-      workspace.licenseKey,
-      workspace.plan,
-    );
+  private publicFeatures(): string[] {
+    const features = this.featureService.getFeatures();
     return PUBLIC_SPACE_FEATURES.filter((feature) =>
       features.includes(feature),
     );

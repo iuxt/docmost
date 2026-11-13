@@ -12,7 +12,7 @@ import {
   ResponsiveSettingsContent,
   ResponsiveSettingsControl,
 } from "@/components/ui/responsive-settings-row";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label.ts";
 
 export default function RestrictApiToAdmins() {
   const { t } = useTranslation();
@@ -21,7 +21,7 @@ export default function RestrictApiToAdmins() {
     workspace?.settings?.api?.restrictToAdmins === true,
   );
   const hasAccess = useHasFeature(Feature.API_KEYS);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.currentTarget.checked;
@@ -54,7 +54,7 @@ export default function RestrictApiToAdmins() {
 
       <ResponsiveSettingsControl>
         <Tooltip
-          label={upgradeLabel}
+          label={unavailableLabel}
           disabled={hasAccess}
           refProp="rootRef"
         >

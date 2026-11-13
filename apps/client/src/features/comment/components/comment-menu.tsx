@@ -12,7 +12,7 @@ import { notifications } from "@mantine/notifications";
 import { useTranslation } from "react-i18next";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { getAppUrl } from "@/lib/config";
 
@@ -39,7 +39,7 @@ function CommentMenu({
 }: CommentMenuProps) {
   const { t } = useTranslation();
   const canResolve = useHasFeature(Feature.COMMENT_RESOLUTION);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
   const clipboard = useClipboard({ timeout: 500 });
 
   const handleCopyLink = () => {
@@ -95,7 +95,7 @@ function CommentMenu({
               {isResolved ? t("Re-open comment") : t("Resolve comment")}
             </Menu.Item>
           ) : (
-            <Tooltip label={upgradeLabel} position="left" withinPortal={false}>
+            <Tooltip label={unavailableLabel} position="left" withinPortal={false}>
               <Menu.Item disabled leftSection={<IconCircleCheck size={14} />}>
                 {t("Resolve comment")}
               </Menu.Item>

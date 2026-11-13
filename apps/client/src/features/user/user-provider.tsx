@@ -11,14 +11,14 @@ import { useTreeSocket } from "@/features/websocket/use-tree-socket.ts";
 import { useNotificationSocket } from "@/features/notification/hooks/use-notification-socket.ts";
 import { useCollabToken } from "@/features/auth/queries/auth-query.tsx";
 import { Error404 } from "@/components/ui/error-404.tsx";
-import { useEntitlements } from "@/ee/entitlement/use-entitlements";
-import { entitlementAtom } from "@/ee/entitlement/entitlement-atom";
+import { useCapabilities } from "@/features/workspace/capabilities/use-capabilities";
+import { capabilitiesAtom } from "@/features/workspace/capabilities/capabilities-atom";
 
 export function UserProvider({ children }: React.PropsWithChildren) {
   const [, setCurrentUser] = useAtom(currentUserAtom);
-  const setEntitlements = useSetAtom(entitlementAtom);
+  const setCapabilities = useSetAtom(capabilitiesAtom);
   const { data, isLoading, error, isError } = useCurrentUser();
-  const { data: entitlements } = useEntitlements();
+  const { data: capabilities } = useCapabilities();
   const { i18n } = useTranslation();
   const [, setSocket] = useAtom(socketAtom);
   // fetch collab token on load
@@ -61,10 +61,10 @@ export function UserProvider({ children }: React.PropsWithChildren) {
   }, [data, isLoading]);
 
   useEffect(() => {
-    if (entitlements) {
-      setEntitlements(entitlements);
+    if (capabilities) {
+      setCapabilities(capabilities);
     }
-  }, [entitlements]);
+  }, [capabilities]);
 
   if (isLoading) return <></>;
 

@@ -4,3 +4,4 @@
 /data
 **/.env*
 **/.nx
+**/.buildx-cache

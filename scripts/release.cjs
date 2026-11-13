@@ -9,7 +9,7 @@ const env = {
   IMAGE_PREFIX: process.env.IMAGE_PREFIX || config.image_prefix,
   DEPLOY_HOST: process.env.DEPLOY_HOST || config.deploy_host,
   DEPLOY_DIR: process.env.DEPLOY_DIR || config.deploy_dir,
-  ITIER_VERSION: process.env.ITIER_VERSION || version,
+  VERSION: process.env.VERSION || version,
 };
 
 const commands = {
@@ -23,7 +23,7 @@ const commands = {
     '--host', env.DEPLOY_HOST,
     '--directory', env.DEPLOY_DIR,
     '--image-prefix', env.IMAGE_PREFIX,
-    '--version', env.ITIER_VERSION,
+    '--version', env.VERSION,
   ]],
 };
 
@@ -43,8 +43,8 @@ for (let i = 0; i < options.length; i += 1) {
     continue;
   }
   const value = inlineValue.length ? inlineValue.join('=') : options[++i];
-  if (!value || versionArgs || process.env.ITIER_VERSION) {
-    console.error('Specify one of --bump patch|minor|major, --version x.y.z, or ITIER_VERSION.');
+  if (!value || versionArgs || process.env.VERSION) {
+    console.error('Specify one of --bump patch|minor|major, --version x.y.z, or VERSION.');
     process.exit(1);
   }
   versionArgs = [option === '--version' ? '--set' : '--bump', value];
@@ -53,7 +53,7 @@ for (let i = 0; i < options.length; i += 1) {
 // Bump before building so the image tag and the embedded app versions agree.
 // Keep explicit tag overrides available for republishing an existing version.
 let originalPackages;
-if (action === 'docker-push' && !process.env.ITIER_VERSION) {
+if (action === 'docker-push' && !process.env.VERSION) {
   originalPackages = ['package.json', 'apps/client/package.json', 'apps/server/package.json']
     .map((file) => {
       const filename = path.join(root, file);
@@ -75,8 +75,8 @@ if (action === 'docker-push' && !process.env.ITIER_VERSION) {
   });
   if (bump.error) console.error(bump.error.message);
   if (bump.status !== 0) process.exit(bump.status ?? 1);
-  env.ITIER_VERSION = bump.stdout.trim();
-  console.log(`Release version: ${version} -> ${env.ITIER_VERSION}`);
+  env.VERSION = bump.stdout.trim();
+  console.log(`Release version: ${version} -> ${env.VERSION}`);
 }
 
 const [command, args] = commands[action];

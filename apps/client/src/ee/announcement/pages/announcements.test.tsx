@@ -14,7 +14,7 @@ import { HelmetProvider } from "react-helmet-async";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Announcements from "./announcements";
-import { entitlementAtom } from "@/ee/entitlement/entitlement-atom";
+import { capabilitiesAtom } from "@/features/workspace/capabilities/capabilities-atom";
 import { Feature } from "@/ee/features";
 import { currentUserAtom } from "@/features/user/atoms/current-user-atom";
 import type { ICurrentUser } from "@/features/user/types/user.types";
@@ -32,7 +32,7 @@ vi.mock("react-i18next", () => ({
 vi.mock("@mantine/notifications", () => ({ notifications: { show: vi.fn() } }));
 vi.mock("../services/announcement-service");
 
-const LICENSE_ALERT = "Announcements are available in the Docmost paid editions.";
+const UNAVAILABLE_ALERT = "Announcements are not available on this instance.";
 
 const announcement: IAnnouncement = {
   id: "a1",
@@ -60,7 +60,7 @@ const page = (items: IAnnouncement[]) => ({
   meta: { limit: 20, hasNextPage: false, hasPrevPage: false, nextCursor: null, prevCursor: null },
 });
 
-// features: the loaded entitlements; leave undefined for "not loaded yet"
+// features: the loaded capabilities; leave undefined for "not loaded yet"
 function renderPage(features?: string[]) {
   const store = createStore();
   store.set(currentUserAtom, {
@@ -68,7 +68,7 @@ function renderPage(features?: string[]) {
     workspace: {},
   } as unknown as ICurrentUser);
   if (features) {
-    store.set(entitlementAtom, { cloud: false, tier: "enterprise", features });
+    store.set(capabilitiesAtom, { features });
   }
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -132,13 +132,13 @@ afterEach(() => {
 });
 
 describe("Announcements page", () => {
-  it("does not call the license missing before the entitlements load", () => {
+  it("does not call the feature unavailable before the capabilities load", () => {
     renderPage();
-    expect(screen.queryByText(LICENSE_ALERT)).toBeNull();
+    expect(screen.queryByText(UNAVAILABLE_ALERT)).toBeNull();
     expect(newAnnouncementButton().disabled).toBe(false);
   });
 
-  it("shows skeleton rows, not an empty list, while the entitlements load", () => {
+  it("shows skeleton rows, not an empty list, while the capabilities load", () => {
     renderPage();
     expect(screen.queryByText("No active announcements")).toBeNull();
     expect(
@@ -155,10 +155,10 @@ describe("Announcements page", () => {
     ).toBeTruthy();
   });
 
-  it("asks for a license once the entitlements lack the feature, and still lists", async () => {
+  it("shows an unavailable message once the capabilities lack the feature, and still lists", async () => {
     vi.mocked(service.getAnnouncements).mockResolvedValue(page([]));
     renderPage([]);
-    expect(screen.getByText(LICENSE_ALERT)).toBeTruthy();
+    expect(screen.getByText(UNAVAILABLE_ALERT)).toBeTruthy();
     expect(newAnnouncementButton().disabled).toBe(true);
     expect(await screen.findByText("No active announcements")).toBeTruthy();
     expect(service.getAnnouncements).toHaveBeenCalledWith({ limit: 20, query: "" });
@@ -198,13 +198,13 @@ describe("Announcements page", () => {
     expect(screen.queryByText("Failed to load announcements")).toBeNull();
   });
 
-  it("lists the current announcements when licensed", async () => {
+  it("lists the current announcements when available", async () => {
     vi.mocked(service.getAnnouncements).mockResolvedValue(page([announcement]));
     renderPage([Feature.ANNOUNCEMENTS]);
     expect(await screen.findByText("Maintenance window")).toBeTruthy();
     expect(service.getAnnouncements).toHaveBeenCalledTimes(1);
     expect(service.getAnnouncements).toHaveBeenCalledWith({ limit: 20, query: "" });
-    expect(screen.queryByText(LICENSE_ALERT)).toBeNull();
+    expect(screen.queryByText(UNAVAILABLE_ALERT)).toBeNull();
     expect(newAnnouncementButton().disabled).toBe(false);
   });
 

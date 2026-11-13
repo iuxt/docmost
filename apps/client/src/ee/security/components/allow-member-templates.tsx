@@ -7,7 +7,7 @@ import { updateWorkspace } from "@/features/workspace/services/workspace-service
 import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label.ts";
 
 export default function AllowMemberTemplates() {
   const { t } = useTranslation();
@@ -35,7 +35,7 @@ function AllowMemberTemplatesToggle() {
     workspace?.settings?.templates?.allowMemberTemplates === true,
   );
   const hasTemplates = useHasFeature(Feature.TEMPLATES);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.currentTarget.checked;
@@ -54,7 +54,7 @@ function AllowMemberTemplatesToggle() {
   };
 
   return (
-    <Tooltip label={upgradeLabel} disabled={hasTemplates} refProp="rootRef">
+    <Tooltip label={unavailableLabel} disabled={hasTemplates} refProp="rootRef">
       <Switch
         checked={checked}
         onChange={handleChange}

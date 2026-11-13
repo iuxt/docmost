@@ -94,8 +94,6 @@ export const auditEventLabels: Record<string, string> = {
   "sso.provider_updated": "Updated SSO provider",
   "sso.provider_deleted": "Deleted SSO provider",
 
-  "license.activated": "Activated license",
-  "license.removed": "Removed license",
 
   "siem_destination.created": "Created SIEM destination",
   "siem_destination.updated": "Updated SIEM destination",
@@ -246,13 +244,6 @@ export const eventFilterOptions: EventGroup[] = [
       { value: "scim_token.created", label: "Created SCIM token" },
       { value: "scim_token.updated", label: "Updated SCIM token" },
       { value: "scim_token.deleted", label: "Deleted SCIM token" },
-    ],
-  },
-  {
-    group: "License",
-    items: [
-      { value: "license.activated", label: "Activated license" },
-      { value: "license.removed", label: "Removed license" },
     ],
   },
   {

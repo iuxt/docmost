@@ -66,9 +66,9 @@ function makeService(overrides: any = {}) {
     ...overrides.transclusionService,
   };
 
-  const licenseCheckService = {
-    resolveFeatures: jest.fn().mockReturnValue([Feature.PUBLIC_SPACE_APPEARANCE]),
-    ...overrides.licenseCheckService,
+  const featureService = {
+    hasFeature: jest.fn().mockReturnValue(true),
+    ...overrides.featureService,
   };
 
   const environmentService = {
@@ -83,7 +83,7 @@ function makeService(overrides: any = {}) {
     pagePermissionRepo as any,
     shareService as any,
     transclusionService as any,
-    licenseCheckService as any,
+    featureService as any,
     environmentService as any,
   );
   return {
@@ -94,7 +94,7 @@ function makeService(overrides: any = {}) {
     pagePermissionRepo,
     shareService,
     transclusionService,
-    licenseCheckService,
+    featureService,
     environmentService,
   };
 }
@@ -555,9 +555,9 @@ describe('PublicSpaceService', () => {
       expect(publicSpaceRepo.upsert.mock.calls[0][0].settings).toBeUndefined();
     });
 
-    it('rejects appearance when the workspace lacks the license feature', async () => {
+    it('rejects appearance when the feature is unavailable', async () => {
       const { service, publicSpaceRepo } = makeService({
-        licenseCheckService: { resolveFeatures: jest.fn().mockReturnValue([]) },
+        featureService: { hasFeature: jest.fn().mockReturnValue(false) },
       });
 
       await expect(
@@ -651,10 +651,10 @@ describe('PublicSpaceService', () => {
       expect(result).not.toHaveProperty('settings');
     });
 
-    it('strips appearance when the workspace lacks the license feature', async () => {
+    it('strips appearance when the feature is unavailable', async () => {
       const { service } = makeService({
         publicSpaceRepo: publicSpaceRepoWithSettings,
-        licenseCheckService: { resolveFeatures: jest.fn().mockReturnValue([]) },
+        featureService: { hasFeature: jest.fn().mockReturnValue(false) },
       });
       const result = await service.getPublicSpaceInfo(
         'handbook',

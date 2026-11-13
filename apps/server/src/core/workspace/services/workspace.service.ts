@@ -6,7 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { LicenseCheckService } from '../../../integrations/environment/license-check.service';
+import { FeatureService } from '../../../integrations/environment/feature.service';
 import { UserSessionRepo } from '@docmost/db/repos/session/user-session.repo';
 import { CreateWorkspaceDto } from '../dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from '../dto/update-workspace.dto';
@@ -74,7 +74,7 @@ export class WorkspaceService {
     private userRepo: UserRepo,
     private environmentService: EnvironmentService,
     private domainService: DomainService,
-    private licenseCheckService: LicenseCheckService,
+    private featureService: FeatureService,
     private shareRepo: ShareRepo,
     private readonly publicSpaceRepo: PublicSpaceRepo,
     private watcherRepo: WatcherRepo,
@@ -117,7 +117,6 @@ export class WorkspaceService {
         'logo',
         'hostname',
         'enforceSso',
-        'licenseKey',
         'plan',
         'settings',
       ])
@@ -141,7 +140,7 @@ export class WorkspaceService {
       throw new NotFoundException('Workspace not found');
     }
 
-    const { licenseKey, plan, settings, ...rest } = workspace;
+    const { plan, settings, ...rest } = workspace;
 
     return {
       ...rest,
@@ -396,7 +395,7 @@ export class WorkspaceService {
     ) {
       const ws = await this.db
         .selectFrom('workspaces')
-        .select(['id', 'licenseKey', 'plan', 'trashRetentionDays'])
+        .select(['id', 'trashRetentionDays'])
         .where('id', '=', workspaceId)
         .executeTakeFirst();
 
@@ -405,30 +404,26 @@ export class WorkspaceService {
       }
 
       if (typeof updateWorkspaceDto.mcpEnabled !== 'undefined') {
-        if (!this.licenseCheckService.hasFeature(ws.licenseKey, 'mcp', ws.plan)) {
+        if (!this.featureService.hasFeature(Feature.MCP)) {
           throw new ForbiddenException(
-            'This feature requires a valid license',
+            'This feature is not available on this instance',
           );
         }
       }
 
       if (typeof updateWorkspaceDto.isScimEnabled !== 'undefined') {
-        if (!this.licenseCheckService.hasFeature(ws.licenseKey, Feature.SCIM, ws.plan)) {
+        if (!this.featureService.hasFeature(Feature.SCIM)) {
           throw new ForbiddenException(
-            'This feature requires a valid license',
+            'This feature is not available on this instance',
           );
         }
       }
 
       if (typeof updateWorkspaceDto.allowPersonalSpaces !== 'undefined') {
-        if (
-          !this.licenseCheckService.hasFeature(
-            ws.licenseKey,
-            Feature.PERSONAL_SPACES,
-            ws.plan,
-          )
-        ) {
-          throw new ForbiddenException('This feature requires a valid license');
+        if (!this.featureService.hasFeature(Feature.PERSONAL_SPACES)) {
+          throw new ForbiddenException(
+            'This feature is not available on this instance',
+          );
         }
       }
 
@@ -436,26 +431,18 @@ export class WorkspaceService {
         typeof updateWorkspaceDto.aiChatReadOnly !== 'undefined' ||
         typeof updateWorkspaceDto.aiChatWorkspaceKnowledgeOnly !== 'undefined'
       ) {
-        if (
-          !this.licenseCheckService.hasFeature(
-            ws.licenseKey,
-            Feature.AI_CONTROLS,
-            ws.plan,
-          )
-        ) {
-          throw new ForbiddenException('This feature requires a valid license');
+        if (!this.featureService.hasFeature(Feature.AI_CONTROLS)) {
+          throw new ForbiddenException(
+            'This feature is not available on this instance',
+          );
         }
       }
 
       if (typeof updateWorkspaceDto.enforceMcpOauth !== 'undefined') {
-        if (
-          !this.licenseCheckService.hasFeature(
-            ws.licenseKey,
-            Feature.MCP_CONTROLS,
-            ws.plan,
-          )
-        ) {
-          throw new ForbiddenException('This feature requires a valid license');
+        if (!this.featureService.hasFeature(Feature.MCP_CONTROLS)) {
+          throw new ForbiddenException(
+            'This feature is not available on this instance',
+          );
         }
       }
 
@@ -465,9 +452,9 @@ export class WorkspaceService {
         typeof updateWorkspaceDto.restrictApiToAdmins !== 'undefined' ||
         typeof updateWorkspaceDto.allowMemberTemplates !== 'undefined'
       ) {
-        if (!this.licenseCheckService.hasFeature(ws.licenseKey, Feature.SECURITY_SETTINGS, ws.plan)) {
+        if (!this.featureService.hasFeature(Feature.SECURITY_SETTINGS)) {
           throw new ForbiddenException(
-            'This feature requires a valid license',
+            'This feature is not available on this instance',
           );
         }
       }
@@ -795,7 +782,6 @@ export class WorkspaceService {
 
     const workspace = await this.workspaceRepo.findById(workspaceId, {
       withMemberCount: true,
-      withLicenseKey: true,
     });
 
     const columnChanges = diffAuditTrackedFields(
@@ -825,9 +811,8 @@ export class WorkspaceService {
       });
     }
 
-    const { licenseKey, ...rest } = workspace;
     return {
-      ...rest,
+      ...workspace,
       searchDriver: this.environmentService.getSearchDriver(workspace),
       typesenseConfigured: this.environmentService.isTypesenseConfigured(),
     };

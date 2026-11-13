@@ -517,7 +517,6 @@ export interface Workspaces {
   hostname: string | null;
   isScimEnabled: Generated<boolean>;
   id: Generated<string>;
-  licenseKey: string | null;
   logo: string | null;
   name: string | null;
   plan: string | null;

@@ -5,7 +5,7 @@ import { ISpace } from "@/features/space/types/space.types.ts";
 import { useUpdateSpaceMutation } from "@/features/space/queries/space-query.ts";
 import { useHasFeature } from "@/ee/hooks/use-feature.ts";
 import { Feature } from "@/ee/features.ts";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label.ts";
 
 type SpaceViewerCommentsToggleProps = {
   space: ISpace;
@@ -16,7 +16,7 @@ export default function SpaceViewerCommentsToggle({
 }: SpaceViewerCommentsToggleProps) {
   const { t } = useTranslation();
   const hasViewerComments = useHasFeature(Feature.VIEWER_COMMENTS);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
   const isDisabled = !hasViewerComments;
   const [checked, setChecked] = useState(
     space.settings?.comments?.allowViewerComments === true,
@@ -45,7 +45,7 @@ export default function SpaceViewerCommentsToggle({
         </Text>
       </div>
       <Tooltip
-        label={upgradeLabel}
+        label={unavailableLabel}
         disabled={!isDisabled}
         refProp="rootRef"
       >

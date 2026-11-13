@@ -110,7 +110,7 @@ export function PageShareModal({ readOnly }: PageShareModalProps) {
                 </Text>
                 <Text size="sm" c="dimmed" ta="center">
                   {t(
-                    "Control who can view and edit individual pages. Available with an enterprise license.",
+                    "Control who can view and edit individual pages. This feature is not available on this instance.",
                   )}
                 </Text>
               </Stack>

@@ -19,7 +19,7 @@ import clsx from "clsx";
 import { useTranslation } from "react-i18next";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 
 const CommandList = ({
   items,
@@ -39,10 +39,8 @@ const CommandList = ({
   const [selectionAnnouncement, setSelectionAnnouncement] = useState("");
 
   const hasBases = useHasFeature(Feature.BASES);
-  const upgradeLabel = useUpgradeLabel();
-  // Without the bases entitlement the item stays visible but inert; an
-  // expired license the client can't detect falls through to a handled
-  // create failure.
+  const unavailableLabel = useFeatureUnavailableLabel();
+  // Keep inserts disabled when the server does not provide bases.
   const isItemDisabled = (item: SlashMenuItemType) =>
     !hasBases && item.requiresBases === true;
 
@@ -157,7 +155,7 @@ const CommandList = ({
               return (
               <Tooltip
                 key={itemIndex}
-                label={upgradeLabel}
+                label={unavailableLabel}
                 disabled={!disabled}
                 position="right"
               >
@@ -190,7 +188,7 @@ const CommandList = ({
 
                   {disabled && (
                     <Badge size="xs" variant="light" color="gray">
-                      {t("Upgrade")}
+                      {t("Unavailable")}
                     </Badge>
                   )}
                 </Group>

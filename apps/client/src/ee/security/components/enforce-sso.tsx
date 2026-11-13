@@ -7,7 +7,7 @@ import { updateWorkspace } from "@/features/workspace/services/workspace-service
 import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature.ts";
 import { Feature } from "@/ee/features.ts";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label.ts";
 
 export default function EnforceSso() {
   const { t } = useTranslation();
@@ -37,7 +37,7 @@ export function EnforceSsoToggle({ size, label }: EnforceSsoToggleProps) {
   const [workspace, setWorkspace] = useAtom(workspaceAtom);
   const [checked, setChecked] = useState(workspace?.enforceSso);
   const hasAccess = useHasFeature(Feature.SSO_CUSTOM);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.currentTarget.checked;
@@ -54,7 +54,7 @@ export function EnforceSsoToggle({ size, label }: EnforceSsoToggleProps) {
   };
 
   return (
-    <Tooltip label={upgradeLabel} disabled={hasAccess} refProp="rootRef">
+    <Tooltip label={unavailableLabel} disabled={hasAccess} refProp="rootRef">
       <Switch
         size={size}
         label={label}

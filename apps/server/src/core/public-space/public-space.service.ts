@@ -17,7 +17,7 @@ import {
   Workspace,
 } from '@docmost/db/types/entity.types';
 import { PublicSpaceAppearanceDto } from './dto/public-space.dto';
-import { LicenseCheckService } from '../../integrations/environment/license-check.service';
+import { FeatureService } from '../../integrations/environment/feature.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { Feature, FeatureKey } from '../../common/features';
 
@@ -30,14 +30,12 @@ export class PublicSpaceService {
     private readonly pagePermissionRepo: PagePermissionRepo,
     private readonly shareService: ShareService,
     private readonly transclusionService: TransclusionService,
-    private readonly licenseCheckService: LicenseCheckService,
+    private readonly featureService: FeatureService,
     private readonly environmentService: EnvironmentService,
   ) {}
 
-  hasFeature(workspace: Workspace, feature: FeatureKey): boolean {
-    return this.licenseCheckService
-      .resolveFeatures(workspace.licenseKey, workspace.plan)
-      .includes(feature);
+  hasFeature(feature: FeatureKey): boolean {
+    return this.featureService.hasFeature(feature);
   }
 
   isPublicSpacesAllowed(workspace: Workspace): boolean {
@@ -275,9 +273,9 @@ export class PublicSpaceService {
       );
     }
 
-    if (appearance && !this.hasFeature(workspace, Feature.PUBLIC_SPACE_APPEARANCE)) {
+    if (appearance && !this.hasFeature(Feature.PUBLIC_SPACE_APPEARANCE)) {
       throw new ForbiddenException(
-        'Public docs appearance requires a paid license',
+        'Public docs appearance is not available on this instance',
       );
     }
 
@@ -380,7 +378,7 @@ export class PublicSpaceService {
   }
 
   private toPublicAppearance(publicSpace: PublicSpace, workspace: Workspace) {
-    if (!this.hasFeature(workspace, Feature.PUBLIC_SPACE_APPEARANCE)) {
+    if (!this.hasFeature(Feature.PUBLIC_SPACE_APPEARANCE)) {
       return undefined;
     }
     const appearance = (publicSpace?.settings as any)?.appearance;

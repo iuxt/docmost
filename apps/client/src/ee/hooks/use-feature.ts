@@ -1,7 +1,7 @@
 import { useAtom } from "jotai";
-import { entitlementAtom } from "@/ee/entitlement/entitlement-atom";
+import { capabilitiesAtom } from "@/features/workspace/capabilities/capabilities-atom";
 
 export const useHasFeature = (feature: string): boolean => {
-  const [entitlements] = useAtom(entitlementAtom);
-  return entitlements?.features?.includes(feature) ?? false;
+  const [capabilities] = useAtom(capabilitiesAtom);
+  return capabilities?.features?.includes(feature) ?? false;
 };

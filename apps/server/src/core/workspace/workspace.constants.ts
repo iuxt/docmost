@@ -33,7 +33,6 @@ export const DISALLOWED_HOSTNAMES = [
   'status',
   'payment',
   'updates',
-  'license',
   'customer',
   'customers',
   'dashboard',

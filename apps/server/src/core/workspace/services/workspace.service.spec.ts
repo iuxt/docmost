@@ -17,7 +17,7 @@ function buildService(config: Record<string, string> = {}, settings = {}) {
   const db = {
     transaction: () => ({ execute: (cb: (t: any) => any) => cb(trx) }),
   };
-  let workspace = { id: workspaceId, settings, licenseKey: 'private-license' };
+  let workspace = { id: workspaceId, settings };
   const workspaceRepo = {
     findById: jest.fn(async () => workspace),
     updateWorkspace: jest.fn(),
@@ -130,7 +130,6 @@ describe('WorkspaceService search settings', () => {
     });
     expect(result.searchDriver).toBe('typesense');
     expect(result.typesenseConfigured).toBe(true);
-    expect(result).not.toHaveProperty('licenseKey');
     expect(searchQueue.add).toHaveBeenCalledWith(
       QueueJob.SEARCH_INDEX_PAGES,
       { workspaceId },

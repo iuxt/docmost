@@ -25,7 +25,7 @@ import { ShareRepo } from '@docmost/db/repos/share/share.repo';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
-import { LicenseCheckService } from '../../../integrations/environment/license-check.service';
+import { FeatureService } from '../../../integrations/environment/feature.service';
 import { AuditEvent, AuditResource } from '../../../common/events/audit-events';
 import { diffAuditTrackedFields } from '../../../common/helpers';
 import {
@@ -41,7 +41,7 @@ export class SpaceService {
     private spaceMemberService: SpaceMemberService,
     private shareRepo: ShareRepo,
     private workspaceRepo: WorkspaceRepo,
-    private licenseCheckService: LicenseCheckService,
+    private featureService: FeatureService,
     @InjectKysely() private readonly db: KyselyDB,
     @InjectQueue(QueueName.ATTACHMENT_QUEUE) private attachmentQueue: Queue,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
@@ -150,30 +150,22 @@ export class SpaceService {
       typeof updateSpaceDto.disablePublicSharing !== 'undefined' ||
       typeof updateSpaceDto.allowViewerComments !== 'undefined'
     ) {
-      const workspace = await this.workspaceRepo.findById(workspaceId, {
-        withLicenseKey: true,
-      });
-
       if (
         typeof updateSpaceDto.disablePublicSharing !== 'undefined' &&
-        !this.licenseCheckService.hasFeature(
-          workspace.licenseKey,
-          Feature.SECURITY_SETTINGS,
-          workspace.plan,
-        )
+        !this.featureService.hasFeature(Feature.SECURITY_SETTINGS)
       ) {
-        throw new ForbiddenException('This feature requires a valid license');
+        throw new ForbiddenException(
+          'This feature is not available on this instance',
+        );
       }
 
       if (
         typeof updateSpaceDto.allowViewerComments !== 'undefined' &&
-        !this.licenseCheckService.hasFeature(
-          workspace.licenseKey,
-          Feature.VIEWER_COMMENTS,
-          workspace.plan,
-        )
+        !this.featureService.hasFeature(Feature.VIEWER_COMMENTS)
       ) {
-        throw new ForbiddenException('This feature requires a valid license');
+        throw new ForbiddenException(
+          'This feature is not available on this instance',
+        );
       }
     }
 

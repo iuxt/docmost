@@ -44,13 +44,15 @@ export default function Security() {
   const { t } = useTranslation();
   const { isAdmin } = useUserRole();
   const hasCustomSso = useHasFeature(Feature.SSO_CUSTOM);
+  const hasGoogleSso = useHasFeature(Feature.SSO_GOOGLE);
   const hasScim = useHasFeature(Feature.SCIM);
   const [workspace] = useAtom(workspaceAtom);
   const isScimEnabled = workspace?.isScimEnabled ?? false;
 
   const { cursor, goNext, goPrev } = useCursorPaginate();
   const { data: scimData, isLoading: scimLoading } = useGetScimTokensQuery(
-    hasScim && isScimEnabled ? { cursor } : undefined,
+    { cursor },
+    hasScim && isScimEnabled,
   );
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -98,7 +100,7 @@ export default function Security() {
         </>
       )}
 
-      <SsoProviderList />
+      {(hasCustomSso || hasGoogleSso) && <SsoProviderList />}
 
       {hasScim && (
         <>

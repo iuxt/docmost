@@ -8,7 +8,7 @@ import { updateWorkspace } from "@/features/workspace/services/workspace-service
 import { notifications } from "@mantine/notifications";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label.ts";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label.ts";
 
 export default function DisablePublicSharing() {
   const { t } = useTranslation();
@@ -34,7 +34,7 @@ function DisablePublicSharingToggle() {
     workspace?.settings?.sharing?.disabled === true,
   );
   const hasSharingControls = useHasFeature(Feature.SHARING_CONTROLS);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
 
   const applyChange = async (value: boolean) => {
     try {
@@ -75,7 +75,7 @@ function DisablePublicSharingToggle() {
   };
 
   return (
-    <Tooltip label={upgradeLabel} disabled={hasSharingControls} refProp="rootRef">
+    <Tooltip label={unavailableLabel} disabled={hasSharingControls} refProp="rootRef">
       <Switch
         checked={checked}
         onChange={handleChange}

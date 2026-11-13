@@ -110,9 +110,6 @@ export const AuditEvent = {
   USER_MFA_DISABLED: 'user.mfa_disabled',
   USER_MFA_BACKUP_CODE_GENERATED: 'user.mfa_backup_code_generated',
 
-  // License
-  LICENSE_ACTIVATED: 'license.activated',
-  LICENSE_REMOVED: 'license.removed',
 
   // Attachment
   ATTACHMENT_UPLOADED: 'attachment.uploaded',
@@ -163,7 +160,6 @@ export const AuditResource = {
   SSO_PROVIDER: 'sso_provider',
   WORKSPACE_INVITATION: 'workspace_invitation',
   ATTACHMENT: 'attachment',
-  LICENSE: 'license',
   SIEM_DESTINATION: 'siem_destination',
   TEMPLATE: 'template',
   ANNOUNCEMENT: 'announcement',

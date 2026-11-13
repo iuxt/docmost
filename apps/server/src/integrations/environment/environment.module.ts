@@ -4,7 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { validate } from './environment.validation';
 import { envPath } from '../../common/helpers';
 import { DomainService } from './domain.service';
-import { LicenseCheckService } from './license-check.service';
+import { FeatureService } from './feature.service';
 
 @Global()
 @Module({
@@ -16,7 +16,7 @@ import { LicenseCheckService } from './license-check.service';
       validate,
     }),
   ],
-  providers: [EnvironmentService, DomainService, LicenseCheckService],
-  exports: [EnvironmentService, DomainService, LicenseCheckService],
+  providers: [EnvironmentService, DomainService, FeatureService],
+  exports: [EnvironmentService, DomainService, FeatureService],
 })
 export class EnvironmentModule {}

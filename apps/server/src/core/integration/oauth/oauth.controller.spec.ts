@@ -27,7 +27,7 @@ import { JwtStrategy } from '../../auth/strategies/jwt.strategy';
 import { OAuthService } from './oauth.service';
 import { IntegrationConnectionService } from '../integration-connection.service';
 import { IntegrationRegistry } from '../registry/integration-registry';
-import { LicenseCheckService } from '../../../integrations/environment/license-check.service';
+import { FeatureService } from '../../../integrations/environment/feature.service';
 import { EnvironmentService } from '../../../integrations/environment/environment.service';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
@@ -520,7 +520,7 @@ describe('OAuthController complete without a session', () => {
         ...[
           OAuthService,
           IntegrationConnectionService,
-          LicenseCheckService,
+          FeatureService,
           IntegrationRegistry,
           UserRepo,
           WorkspaceRepo,

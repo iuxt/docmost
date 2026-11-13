@@ -36,7 +36,7 @@ import {
   WorkspaceCaslAction,
   WorkspaceCaslSubject,
 } from '../../casl/interfaces/workspace-ability.type';
-import { LicenseCheckService } from '../../../integrations/environment/license-check.service';
+import { FeatureService } from '../../../integrations/environment/feature.service';
 import {
   IdentityEmailMismatchError,
   IdentityTenantMismatchError,
@@ -69,7 +69,7 @@ export class OAuthController {
     private readonly oauthService: OAuthService,
     private readonly connectionService: IntegrationConnectionService,
     private readonly workspaceAbility: WorkspaceAbilityFactory,
-    private readonly licenseCheckService: LicenseCheckService,
+    private readonly featureService: FeatureService,
     private readonly registry: IntegrationRegistry,
     private readonly encryptionService: EncryptionService,
     private readonly environmentService: EnvironmentService,
@@ -118,13 +118,9 @@ export class OAuthController {
       this.registry.getProvider(dto.type)?.definition.requiresFeature;
     if (
       requiredFeature &&
-      !this.licenseCheckService.hasFeature(
-        workspace.licenseKey,
-        requiredFeature,
-        workspace.plan,
-      )
+      !this.featureService.hasFeature(requiredFeature)
     ) {
-      throw new ForbiddenException('This feature requires a valid license');
+      throw new ForbiddenException('This feature is not available on this instance');
     }
 
     const { authorizationUrl, nonce } =

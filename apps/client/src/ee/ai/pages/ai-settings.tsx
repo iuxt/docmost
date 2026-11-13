@@ -12,7 +12,7 @@ import { Alert, Collapse, Stack, Tabs } from "@mantine/core";
 import { IconInfoCircle } from "@tabler/icons-react";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 import { useLocation, useNavigate } from "react-router-dom";
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
 import { useAtomValue } from "jotai";
@@ -22,7 +22,7 @@ export default function AiSettings() {
   const { t } = useTranslation();
   const { isAdmin } = useUserRole();
   const hasAccess = useHasFeature(Feature.AI);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
   const workspace = useAtomValue(workspaceAtom);
   const aiChatEnabled = workspace?.settings?.ai?.chat === true;
   const location = useLocation();
@@ -61,13 +61,11 @@ export default function AiSettings() {
           {!hasAccess && (
             <Alert
               icon={<IconInfoCircle />}
-              title={upgradeLabel}
+              title={unavailableLabel}
               color="blue"
               mb="lg"
             >
-              {t(
-                "AI is available in the Docmost paid editions. Contact sales@docmost.com.",
-              )}
+              {t("AI is not available on this instance.")}
             </Alert>
           )}
 

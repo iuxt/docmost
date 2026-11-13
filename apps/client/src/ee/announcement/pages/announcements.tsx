@@ -11,7 +11,7 @@ import { SearchInput } from "@/components/common/search-input";
 import { usePaginateAndSearch } from "@/hooks/use-paginate-and-search";
 import useUserRole from "@/hooks/use-user-role.tsx";
 import { getApiErrorMessage } from "@/lib/api-error";
-import { entitlementAtom } from "@/ee/entitlement/entitlement-atom";
+import { capabilitiesAtom } from "@/features/workspace/capabilities/capabilities-atom";
 import { Feature } from "@/ee/features";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { AnnouncementArchiveFilter } from "@/ee/announcement/components/announcement-archive-filter";
@@ -30,16 +30,16 @@ export default function Announcements() {
   const { t } = useTranslation();
   const { isAdmin } = useUserRole();
   const hasFeature = useHasFeature(Feature.ANNOUNCEMENTS);
-  // Entitlements stay null until they load, which must read as loading, not as unlicensed
-  const entitlements = useAtomValue(entitlementAtom);
-  const isUnlicensed = entitlements !== null && !hasFeature;
+  // Wait for capability detection before showing the unavailable state.
+  const capabilities = useAtomValue(capabilitiesAtom);
+  const isUnavailable = capabilities !== null && !hasFeature;
   const { search, cursor, goNext, goPrev, handleSearch, resetPagination } =
     usePaginateAndSearch();
   const [archived, setArchived] = useState(false);
   const [formOpened, setFormOpened] = useState(false);
   const [selected, setSelected] = useState<IAnnouncement | null>(null);
-  // Without the feature the list stays readable, so a lapsed license can still archive and delete
-  const canLoad = isAdmin && entitlements !== null;
+  // Existing announcements remain readable when the feature is unavailable.
+  const canLoad = isAdmin && capabilities !== null;
   const query = useAnnouncementsQuery(
     {
       cursor,
@@ -96,9 +96,9 @@ export default function Announcements() {
 
       <SettingsTitle title={t("Announcements")} />
 
-      {isUnlicensed && (
+      {isUnavailable && (
         <Alert icon={<IconInfoCircle size={16} />} color="yellow" mb="md">
-          {t("Announcements are available in the Docmost paid editions.")}
+          {t("Announcements are not available on this instance.")}
         </Alert>
       )}
 
@@ -110,7 +110,7 @@ export default function Announcements() {
         </Text>
         <Button
           onClick={() => openForm(null)}
-          disabled={isUnlicensed}
+          disabled={isUnavailable}
           style={{ flexShrink: 0 }}
         >
           {t("New announcement")}
@@ -136,7 +136,7 @@ export default function Announcements() {
         <>
           <AnnouncementTable
             announcements={query.data?.items ?? []}
-            isLoading={query.isLoading || entitlements === null}
+            isLoading={query.isLoading || capabilities === null}
             emptyMessage={
               search
                 ? t("No results found...")

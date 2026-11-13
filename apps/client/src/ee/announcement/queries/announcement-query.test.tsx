@@ -10,7 +10,7 @@ import { act, render, renderHook, screen, waitFor } from "@testing-library/react
 import { createStore, Provider as JotaiProvider } from "jotai";
 import { notifications } from "@mantine/notifications";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { entitlementAtom } from "@/ee/entitlement/entitlement-atom";
+import { capabilitiesAtom } from "@/features/workspace/capabilities/capabilities-atom";
 import { Feature } from "@/ee/features";
 import {
   ANNOUNCEMENTS_KEY,
@@ -70,17 +70,15 @@ const requestError = (data: unknown, status = 409) =>
 // the server answers with its clock beside the list
 const visible = (now = new Date().toISOString()) => ({ now, items: banners });
 
-const enterprise = (features: string[]) => ({
-  cloud: false,
-  tier: "enterprise" as const,
+const capabilities = (features: string[]) => ({
   features,
 });
 
-// features: the workspace entitlements; leave undefined for "not loaded yet"
+// features: the workspace capabilities; leave undefined for "not loaded yet"
 function setup<T>(useHook: () => T, features?: string[]) {
   const store = createStore();
   if (features) {
-    store.set(entitlementAtom, enterprise(features));
+    store.set(capabilitiesAtom, capabilities(features));
   }
   // the app's defaults from main.tsx, without the retry delay
   const queryClient = new QueryClient({
@@ -107,7 +105,6 @@ afterEach(() => vi.useRealTimers());
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.isCloud.mockReturnValue(false);
-  // the entitlement atom persists to localStorage and would rehydrate on mount
   localStorage.clear();
 });
 
@@ -133,19 +130,19 @@ describe("useVisibleAnnouncementsQuery", () => {
     expect(service.getVisibleAnnouncements).not.toHaveBeenCalled();
   });
 
-  it("starts asking for the logged-in list once the entitlements load", async () => {
+  it("starts asking for the logged-in list once the capabilities load", async () => {
     vi.mocked(service.getVisibleAnnouncements).mockResolvedValue(visible());
     const { result, store } = setup(() => useVisibleState("app"));
     expect(service.getVisibleAnnouncements).not.toHaveBeenCalled();
 
     act(() => {
-      store.set(entitlementAtom, enterprise([Feature.ANNOUNCEMENTS]));
+      store.set(capabilitiesAtom, capabilities([Feature.ANNOUNCEMENTS]));
     });
 
     await waitFor(() => expect(result.current.data?.items).toEqual(banners));
   });
 
-  it("loads the public list on the public surface without any entitlement", async () => {
+  it("loads the public list on the public surface without any workspace capabilities", async () => {
     vi.mocked(service.getPublicAnnouncements).mockResolvedValue(visible());
     const { result } = setup(() => useVisibleState("public"));
     await waitFor(() => expect(result.current.data?.items).toEqual(banners));

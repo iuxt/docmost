@@ -58,7 +58,7 @@ const TemplatePickerModal = React.lazy(
   () => import("@/ee/template/components/template-picker-modal"),
 );
 import { useHasFeature } from "@/ee/hooks/use-feature";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { useFeatureUnavailableLabel } from "@/ee/hooks/use-feature-unavailable-label";
 import { Feature } from "@/ee/features";
 import { ErrorBoundary } from "react-error-boundary";
 
@@ -261,7 +261,7 @@ function SpaceMenu({
     { open: openTemplatePicker, close: closeTemplatePicker },
   ] = useDisclosure(false);
   const hasTemplates = useHasFeature(Feature.TEMPLATES);
-  const upgradeLabel = useUpgradeLabel();
+  const unavailableLabel = useFeatureUnavailableLabel();
 
   const { data: watchStatus } = useSpaceWatchStatusQuery(spaceId);
   const watchMutation = useWatchSpaceMutation();
@@ -335,7 +335,7 @@ function SpaceMenu({
             <>
               <Menu.Divider />
               <Tooltip
-                label={upgradeLabel}
+                label={unavailableLabel}
                 disabled={hasTemplates}
                 position="right"
                 withArrow
