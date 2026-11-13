@@ -70,7 +70,7 @@ describeIntegration('Typesense settings database integration', () => {
   afterAll(async () => {
     for (const locale of ['en', 'zh']) {
       await fetch(
-        `${process.env.TYPESENSE_TEST_URL}/collections/docmost_pages_v1_${locale}`,
+        `${process.env.TYPESENSE_TEST_URL}/collections/docmost_pages_v2_${locale}`,
         {
           method: 'DELETE',
           headers: {

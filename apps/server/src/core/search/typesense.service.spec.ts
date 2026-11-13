@@ -46,7 +46,7 @@ describe('TypesenseService', () => {
       .mockResolvedValueOnce(new Response('{}'));
     await service.ensureCollection();
     expect(String(fetchMock.mock.calls[0][0])).toBe(
-      'http://localhost:8108/CaseSensitive/collections/docmost_pages_v1_zh',
+      'http://localhost:8108/CaseSensitive/collections/docmost_pages_v2_zh',
     );
     const create = JSON.parse(fetchMock.mock.calls[1][1].body);
     expect(create.fields).toEqual(
@@ -87,7 +87,7 @@ describe('TypesenseService', () => {
     expect((upsert[0] as URL).searchParams.get('action')).toBe('upsert');
     expect(JSON.parse(upsert[1].body)).toEqual({
       id: livePage.id,
-      title: livePage.title,
+      title: ' 中  文  文  档 ',
       text: livePage.textContent,
       workspaceId: livePage.workspaceId,
       spaceId: livePage.spaceId,
@@ -134,6 +134,30 @@ describe('TypesenseService', () => {
     );
     expect(url.searchParams.get('query_by')).toBe('title');
     expect(url.searchParams.get('include_fields')).toBe('id');
+  });
+
+  it('uses identical Chinese boundaries for indexed text and queries', async () => {
+    const { service } = setup([
+      { ...livePage, title: '我的帅哥123456', textContent: '编号ABC中文789' },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(new Response('{}'))
+      .mockResolvedValueOnce(new Response('{"success":true}\n'))
+      .mockResolvedValueOnce(new Response('{"found":0,"hits":[]}'));
+
+    await service.syncPages([livePage.id]);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
+      title: ' 我  的  帅  哥 123456',
+      text: ' 编  号 ABC 中  文 789',
+    });
+    await service.search('帅哥123456', livePage.workspaceId, false, 1);
+    const url = fetchMock.mock.calls[2][0] as URL;
+    expect(url.searchParams.get('q')).toBe(' 帅  哥 123456');
+    expect(url.searchParams.get('pre_segmented_query')).toBe('true');
+    expect(url.searchParams.get('drop_tokens_threshold')).toBe('0');
+    expect(url.searchParams.get('enable_typos_for_numerical_tokens')).toBe(
+      'false',
+    );
   });
 
   it('keeps workspace-scoped backfill jobs scoped across batches', async () => {

@@ -18,6 +18,13 @@ export interface TypesenseHits {
 
 const INDEX_BATCH_SIZE = 250;
 
+// Use the same Han character boundaries at index and query time, regardless of
+// the selected locale or ICU dictionary. This also separates adjacent numbers
+// and Latin words from Chinese text without changing their own tokenization.
+function segmentChinese(value: string) {
+  return value.replace(/\p{Script=Han}/gu, ' $& ');
+}
+
 export class TypesenseClient {
   private collectionReady?: Promise<void>;
 
@@ -31,8 +38,8 @@ export class TypesenseClient {
   }
 
   get collectionName() {
-    // A locale change needs a new schema and a fresh index.
-    return `docmost_pages_v1_${this.config.locale}`;
+    // Tokenization changes require a fresh index, including existing pages.
+    return `docmost_pages_v2_${this.config.locale}`;
   }
 
   async request<T>(
@@ -123,7 +130,12 @@ export class TypesenseClient {
       `collections/${this.collectionName}/documents/search`,
       {},
       {
-        q: query,
+        q: segmentChinese(query),
+        pre_segmented_query: String(/\p{Script=Han}/u.test(query)),
+        // Do not silently discard a character or correct an identifier when
+        // the full query has no matches.
+        drop_tokens_threshold: '0',
+        enable_typos_for_numerical_tokens: 'false',
         query_by: titleOnly ? 'title' : 'title,text',
         query_by_weights: titleOnly ? '4' : '4,1',
         filter_by: `workspaceId:=${workspaceId}`,
@@ -186,8 +198,8 @@ export class TypesenseClient {
             .map((page) =>
               JSON.stringify({
                 id: page.id,
-                title: page.title ?? '',
-                text: page.textContent ?? '',
+                title: segmentChinese(page.title ?? ''),
+                text: segmentChinese(page.textContent ?? ''),
                 workspaceId: page.workspaceId,
                 spaceId: page.spaceId,
               }),

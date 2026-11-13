@@ -23,7 +23,7 @@ describe('Typesense database configuration at runtime', () => {
       });
       await service.search('hello', workspaceId, false, 1);
       expect(String(fetchMock.mock.calls[3][0])).toContain(
-        'http://new:8108/collections/docmost_pages_v1_en/documents/search',
+        'http://new:8108/collections/docmost_pages_v2_en/documents/search',
       );
       expect(
         (fetchMock.mock.calls[3][1].headers as any)['X-TYPESENSE-API-KEY'],

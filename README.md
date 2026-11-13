@@ -164,6 +164,11 @@ deletes are synchronized through the search queue. Saving workspace search
 settings or enabling Typesense queues a backfill of existing pages. Initial indexing is asynchronous,
 so results can be incomplete until it finishes. Changing the locale builds a new
 collection; old locale collections remain available for manual cleanup.
+Index version upgrades also rebuild existing pages in a new collection. Version 2
+uses matching Han character boundaries when indexing and querying, so Chinese
+terms and adjacent numbers (for example, `帅哥` and `123456` in `我的帅哥123456`)
+are searchable in both Chinese and English workspaces. Queries require all tokens
+and do not apply typo correction to numbers.
 Typesense's [collection documentation](https://typesense.org/docs/30.1/api/collections.html)
 describes language-specific tokenization.
 

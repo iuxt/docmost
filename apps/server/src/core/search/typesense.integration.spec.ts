@@ -12,6 +12,8 @@ describeIntegration('Typesense live integration', () => {
   const firstId = '019a1f00-0000-7000-8000-000000000010';
   const secondId = '019a1f00-0000-7000-8000-000000000011';
   const foreignId = '019a1f00-0000-7000-8000-000000000012';
+  const mixedTitleId = '019a1f00-0000-7000-8000-000000000013';
+  const mixedBodyId = '019a1f00-0000-7000-8000-000000000014';
   const pages = [
     {
       id: firstId,
@@ -31,9 +33,25 @@ describeIntegration('Typesense live integration', () => {
     },
     {
       id: foreignId,
-      title: '中文测试',
+      title: '中文测试 我的帅哥123456',
       textContent: 'Collaboration',
       workspaceId: '019a1f00-0000-7000-8000-000000000099',
+      spaceId,
+      deletedAt: null,
+    },
+    {
+      id: mixedTitleId,
+      title: '我的帅哥123456',
+      textContent: '',
+      workspaceId,
+      spaceId,
+      deletedAt: null,
+    },
+    {
+      id: mixedBodyId,
+      title: 'Mixed content',
+      textContent: '我的帅哥123456',
+      workspaceId,
       spaceId,
       deletedAt: null,
     },
@@ -52,7 +70,7 @@ describeIntegration('Typesense live integration', () => {
     workspaceId,
   );
 
-  // Chinese tokenization and English typo matching use their respective locales.
+  // Chinese boundaries must also work when the workspace uses English.
   const englishService = new TypesenseClient(
     {
       url: process.env.TYPESENSE_TEST_URL,
@@ -73,6 +91,37 @@ describeIntegration('Typesense live integration', () => {
       method: 'DELETE',
     });
   });
+
+  it('finds Chinese characters, words and adjacent numbers in either locale', async () => {
+    for (const client of [service, englishService]) {
+      await client.syncPages(pages.map((page) => page.id));
+      for (const query of [
+        '帅',
+        '帅哥',
+        '123456',
+        '哥123456',
+        '我的帅哥123456',
+        '帅哥 123456',
+      ]) {
+        const result = await client.search(query, workspaceId, false, 1);
+        expect(result.hits.map((hit) => hit.document.id).sort()).toEqual([
+          mixedTitleId,
+          mixedBodyId,
+        ]);
+        const titleOnly = await client.search(query, workspaceId, true, 1);
+        expect(titleOnly.hits.map((hit) => hit.document.id)).toEqual([
+          mixedTitleId,
+        ]);
+      }
+      // A longer query must not degrade to a match for just one character or
+      // silently turn a different number into the indexed identifier.
+      for (const query of ['帅霸', '123457', '帅哥 987654']) {
+        expect((await client.search(query, workspaceId, false, 1)).found).toBe(
+          0,
+        );
+      }
+    }
+  }, 30000);
 
   it('indexes Chinese and English, tolerates typos, isolates workspaces, and synchronizes deletions/restores', async () => {
     await service.syncPages(pages.map((page) => page.id));
