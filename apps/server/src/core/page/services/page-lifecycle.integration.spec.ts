@@ -5,6 +5,7 @@ import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 import { TrashCleanupService } from './trash-cleanup.service';
 import { SearchService } from '../../search/search.service';
+import { PageService } from './page.service';
 
 // Use a disposable database. Tables live in a dedicated schema removed afterward.
 const run = process.env.REVIEW_TEST_DATABASE_URL ? describe : describe.skip;
@@ -38,13 +39,19 @@ run('Page lifecycle and authorized search (PostgreSQL)', () => {
     await sql`create table workspaces (id uuid primary key, trash_retention_days int, deleted_at timestamptz)`.execute(
       db,
     );
-    await sql`create table spaces (id uuid primary key)`.execute(db);
+    await sql`create table spaces (id uuid primary key, home_page_id uuid)`.execute(
+      db,
+    );
+    await sql`create table shares (page_id uuid)`.execute(db);
     await sql`create table pages (
       id uuid primary key, slug_id text, title text, icon text,
       parent_page_id uuid references pages(id) on delete cascade,
       space_id uuid, workspace_id uuid, creator_id uuid,
       created_at timestamptz default now(), updated_at timestamptz default now(),
       deleted_at timestamptz, deleted_by_id uuid
+      , position text, cover_photo text, cover_position double precision,
+      cover_attribution jsonb, last_updated_by_id uuid, is_locked boolean,
+      is_base boolean, contributor_ids uuid[]
     )`.execute(db);
     await sql`create table page_access (id uuid primary key, page_id uuid, space_id uuid)`.execute(
       db,
@@ -73,6 +80,7 @@ run('Page lifecycle and authorized search (PostgreSQL)', () => {
       'pagePermissions',
       'pageAccess',
       'groupUsers',
+      'shares',
       'pages',
       'spaces',
       'workspaces',
@@ -109,6 +117,108 @@ run('Page lifecycle and authorized search (PostgreSQL)', () => {
       })
       .execute();
   }
+
+  it.each(['create-first', 'delete-first'])(
+    'serializes child creation and trashing (%s)',
+    async (order) => {
+      await db
+        .insertInto('pages')
+        .values({ id: rootId, workspaceId, spaceId })
+        .execute();
+      let acquired!: () => void, resume!: () => void, waiting!: () => void;
+      const locked = new Promise<void>((resolve) => {
+        acquired = resolve;
+      });
+      const release = new Promise<void>((resolve) => {
+        resume = resolve;
+      });
+      const attempted = new Promise<void>((resolve) => {
+        waiting = resolve;
+      });
+      const lock = repo.lockPageHierarchySpaces.bind(repo);
+      let count = 0;
+      jest
+        .spyOn(repo, 'lockPageHierarchySpaces')
+        .mockImplementation(async (...args) => {
+          const first = ++count === 1;
+          if (!first) waiting();
+          await lock(...args);
+          if (first) {
+            acquired();
+            await release;
+          }
+        });
+      const create = () =>
+        repo.insertPage({
+          id: childId,
+          slugId: 'child',
+          position: 'a0',
+          parentPageId: rootId,
+          workspaceId,
+          spaceId,
+        } as any);
+      const remove = () => repo.removePage(rootId, userId, workspaceId);
+      const first = order === 'create-first' ? create() : remove();
+      await locked;
+      const second =
+        order === 'create-first'
+          ? remove()
+          : expect(create()).rejects.toThrow('Parent page not found');
+      try {
+        await attempted;
+      } finally {
+        resume();
+      }
+      const results = await Promise.allSettled([first, second]);
+      for (const result of results) expect(result.status).toBe('fulfilled');
+      const pages = await db
+        .selectFrom('pages')
+        .select(['id', 'deletedAt'])
+        .execute();
+      expect(pages).toHaveLength(order === 'create-first' ? 2 : 1);
+      expect(pages.every((page) => page.deletedAt !== null)).toBe(true);
+    },
+  );
+
+  it('keeps attachment cleanup unqueued when a permanent page delete rolls back', async () => {
+    await tree();
+    const service = Object.create(PageService.prototype);
+    service.pageRepo = repo;
+    service.attachmentQueue = queue;
+    service.eventEmitter = events;
+    await sql`create function docmost_review_fixes.reject_delete() returns trigger language plpgsql as $$begin raise exception 'delete failed'; end$$`.execute(
+      db,
+    );
+    await sql`create trigger reject_delete before delete on pages for each row execute function docmost_review_fixes.reject_delete()`.execute(
+      db,
+    );
+    try {
+      await expect(service.forceDelete(rootId, workspaceId)).rejects.toThrow(
+        'delete failed',
+      );
+      expect(await db.selectFrom('pages').select('id').execute()).toHaveLength(
+        2,
+      );
+      expect(queue.add).not.toHaveBeenCalled();
+      expect(events.emit).not.toHaveBeenCalled();
+    } finally {
+      await sql`drop trigger reject_delete on pages`.execute(db);
+      await sql`drop function docmost_review_fixes.reject_delete()`.execute(db);
+    }
+  });
+
+  it('only queues permanent deletion attachments once page deletion is visible to other connections', async () => {
+    await tree();
+    const service = Object.create(PageService.prototype);
+    service.pageRepo = repo;
+    service.attachmentQueue = queue;
+    service.eventEmitter = events;
+    queue.add.mockImplementation(async () => {
+      expect(await db.selectFrom('pages').select('id').execute()).toEqual([]);
+    });
+    await service.forceDelete(rootId, workspaceId);
+    expect(queue.add).toHaveBeenCalledTimes(2);
+  });
 
   it('preserves a tree restored after scanning but before the cleanup lock', async () => {
     await tree();

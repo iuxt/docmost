@@ -88,12 +88,24 @@ export class ShareController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @Post('/info')
-  async getShare(@Body() dto: ShareIdDto) {
-    const share = await this.shareRepo.findById(dto.shareId, {
-      includeSharedPage: true,
-    });
+  async getShare(
+    @Body() dto: ShareIdDto,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    const share = await this.shareRepo.findById(dto.shareId);
 
-    if (!share) {
+    if (!share || share.workspaceId !== workspace.id || share.deletedAt) {
+      throw new NotFoundException('Share not found');
+    }
+
+    const page = await this.pageRepo.findById(share.pageId);
+    if (
+      !page ||
+      page.deletedAt ||
+      page.workspaceId !== workspace.id ||
+      page.spaceId !== share.spaceId ||
+      (await this.pagePermissionRepo.hasRestrictedAncestor(page.id))
+    ) {
       throw new NotFoundException('Share not found');
     }
 
@@ -105,7 +117,11 @@ export class ShareController {
       throw new NotFoundException('Share not found');
     }
 
-    return share;
+    // Anonymous callers only need these fields to resolve the public URL.
+    return {
+      key: share.key,
+      sharedPage: { slugId: page.slugId, title: page.title },
+    };
   }
 
   @Public()
@@ -136,7 +152,9 @@ export class ShareController {
 
     await this.pageAccessService.validateCanView(page, user);
 
-    return this.shareService.getShareForPage(page.id, workspace.id);
+    return (
+      (await this.shareService.getShareForPage(page.id, workspace.id)) ?? null
+    );
   }
 
   @HttpCode(HttpStatus.OK)

@@ -2,14 +2,18 @@ import {
   IsArray,
   IsBoolean,
   IsNotEmpty,
-  IsNumber,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
+  Max,
+  Min,
 } from 'class-validator';
 
 export const SEARCH_QUERY_MAX_LENGTH = 200;
+export const SEARCH_LIMIT_MAX = 100;
+export const SEARCH_OFFSET_MAX = 10000;
 
 export class SearchDTO {
   @IsOptional()
@@ -44,11 +48,15 @@ export class SearchDTO {
   includeArchived?: boolean;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @Min(1)
+  @Max(SEARCH_LIMIT_MAX)
   limit?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @Min(0)
+  @Max(SEARCH_OFFSET_MAX)
   offset?: number;
 }
 
@@ -90,6 +98,8 @@ export class SearchSuggestionDTO {
   spaceId?: string;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @Min(1)
+  @Max(SEARCH_LIMIT_MAX)
   limit?: number;
 }

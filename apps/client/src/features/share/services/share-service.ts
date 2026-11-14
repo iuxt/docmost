@@ -4,6 +4,7 @@ import { IPage } from "@/features/page/types/page.types";
 import {
   ICreateShare,
   IShare,
+  IPublicShareInfo,
   ISharedItem,
   ISharedPage,
   ISharedPageTree,
@@ -25,8 +26,8 @@ export async function createShare(data: ICreateShare): Promise<any> {
   return req.data;
 }
 
-export async function getShareInfo(shareId: string): Promise<IShare> {
-  const req = await api.post<IShare>("/shares/info", { shareId });
+export async function getShareInfo(shareId: string): Promise<IPublicShareInfo> {
+  const req = await api.post<IPublicShareInfo>("/shares/info", { shareId });
   return req.data;
 }
 
@@ -35,7 +36,9 @@ export async function updateShare(data: IUpdateShare): Promise<any> {
   return req.data;
 }
 
-export async function getShareForPage(pageId: string): Promise<IShareForPage> {
+export async function getShareForPage(
+  pageId: string,
+): Promise<IShareForPage | null> {
   const req = await api.post<any>("/shares/for-page", { pageId });
   return req.data;
 }

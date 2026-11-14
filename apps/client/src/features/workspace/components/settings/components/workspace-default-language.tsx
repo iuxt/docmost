@@ -1,4 +1,4 @@
-import { Group, Text, Select } from "@mantine/core";
+import { Text, Select } from "@mantine/core";
 import { useAtom } from "jotai";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
 import { useState } from "react";
@@ -8,21 +8,28 @@ import { notifications } from "@mantine/notifications";
 import { getApiErrorMessage } from "@/lib/api-error.ts";
 import { LANGUAGE_OPTIONS } from "@/lib/constants.ts";
 import useUserRole from "@/hooks/use-user-role.tsx";
+import {
+  ResponsiveSettingsRow,
+  ResponsiveSettingsContent,
+  ResponsiveSettingsControl,
+} from "@/components/ui/responsive-settings-row.tsx";
 
 export default function WorkspaceDefaultLanguage() {
   const { t } = useTranslation();
 
   return (
-    <Group justify="space-between" wrap="nowrap" gap="xl">
-      <div>
+    <ResponsiveSettingsRow>
+      <ResponsiveSettingsContent>
         <Text size="md">{t("Default language")}</Text>
         <Text size="sm" c="dimmed">
           {t("The workspace language and the default for new members.")}
         </Text>
-      </div>
+      </ResponsiveSettingsContent>
 
-      <DefaultLanguageSelect />
-    </Group>
+      <ResponsiveSettingsControl>
+        <DefaultLanguageSelect />
+      </ResponsiveSettingsControl>
+    </ResponsiveSettingsRow>
   );
 }
 

@@ -15,6 +15,11 @@ export interface IShare {
   sharedPage?: ISharePage;
 }
 
+export interface IPublicShareInfo {
+  key: string;
+  sharedPage: { slugId: string; title: string };
+}
+
 export interface ISharedItem extends IShare {
   page: {
     id: string;

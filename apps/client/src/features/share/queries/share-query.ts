@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import {
   ICreateShare,
   IShare,
+  IPublicShareInfo,
   ISharedItem,
   ISharedPage,
   ISharedPageTree,
@@ -41,7 +42,7 @@ export function useGetSharesQuery(
 
 export function useGetShareByIdQuery(
   shareId: string,
-): UseQueryResult<IShare, Error> {
+): UseQueryResult<IPublicShareInfo, Error> {
   const query = useQuery({
     queryKey: ["share-by-id", shareId],
     queryFn: () => getShareInfo(shareId),
@@ -65,7 +66,7 @@ export function useSharePageQuery(
 
 export function useShareForPageQuery(
   pageId: string,
-): UseQueryResult<IShareForPage, Error> {
+): UseQueryResult<IShareForPage | null, Error> {
   const query = useQuery({
     queryKey: ["share-for-page", pageId],
     queryFn: () => getShareForPage(pageId),
@@ -91,7 +92,8 @@ export function useCreateShareMutation() {
     },
     onError: (error) => {
       notifications.show({
-        message: error?.["response"]?.data?.message || t("Failed to share page"),
+        message:
+          error?.["response"]?.data?.message || t("Failed to share page"),
         color: "red",
       });
     },

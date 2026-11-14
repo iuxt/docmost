@@ -34,6 +34,7 @@ describe('Server capabilities', () => {
       undefined,
       undefined,
       service,
+      undefined,
     );
     expect(controller.getCapabilities()).toEqual({
       features: service.getFeatures(),

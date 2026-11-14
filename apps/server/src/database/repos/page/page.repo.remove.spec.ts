@@ -13,6 +13,7 @@ const WORKSPACE_ID = '019a1f00-0000-7000-8000-000000000020';
 const USER_ID = '019a1f00-0000-7000-8000-000000000021';
 const ROOT_ID = '019a1f00-0000-7000-8000-000000000022';
 const CHILD_ID = '019a1f00-0000-7000-8000-000000000023';
+const SPACE_ID = '019a1f00-0000-7000-8000-000000000024';
 
 describe('PageRepo removePage', () => {
   // answers the recursive descendants select with the root and its child, everything else with no rows
@@ -24,7 +25,10 @@ describe('PageRepo removePage', () => {
         executeQuery: async (query: CompiledQuery) => ({
           rows: query.sql.startsWith('with recursive')
             ? [{ id: ROOT_ID }, { id: CHILD_ID }]
-            : [],
+            : query.sql.startsWith('select') &&
+                query.sql.includes('from "pages"')
+              ? [{ id: ROOT_ID, space_id: SPACE_ID, deleted_at: null }]
+              : [],
         }),
         streamQuery: async function* () {},
       }) as any;

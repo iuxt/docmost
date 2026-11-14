@@ -23,6 +23,7 @@ import LightboxView, {
   getLightboxClickRequest,
 } from "@/features/editor/components/common/lightbox-view";
 import { MicrosoftFullscreenModal } from "@/features/editor/components/microsoft/microsoft-fullscreen-modal.tsx";
+import { normalizeEditorContent } from "@/features/editor/utils/normalize-editor-content";
 
 interface PageEditorProps {
   title: string;
@@ -67,6 +68,10 @@ export default function ReadonlyPageEditor({
   const isComponentMounted = useRef(false);
   const editorCreated = useRef(false);
   const lightboxEnabled = withLightbox || Boolean(shareId || spaceSlug);
+  const normalizedContent = useMemo(
+    () => normalizeEditorContent(content),
+    [content],
+  );
 
   const canScroll = useCallback(
     () => isComponentMounted.current && editorCreated.current,
@@ -135,7 +140,7 @@ export default function ReadonlyPageEditor({
         immediatelyRender={true}
         textDirection="auto"
         extensions={extensions}
-        content={content}
+        content={normalizedContent}
         editorProps={
           lightboxEnabled
             ? {

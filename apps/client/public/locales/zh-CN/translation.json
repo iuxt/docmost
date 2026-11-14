@@ -166,6 +166,8 @@
   "No pages yet": "暂无页面",
   "No shared pages": "没有共享页面",
   "No results found...": "未找到结果...",
+  "Search failed. Please try again.": "搜索失败，请重试。",
+  "You are offline. Check your connection and try again.": "当前处于离线状态，请检查网络连接后重试。",
   "No user found": "未找到用户",
   "Overview": "概览",
   "Owner": "所有者",

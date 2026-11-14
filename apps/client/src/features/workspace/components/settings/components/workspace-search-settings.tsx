@@ -21,9 +21,11 @@ import {
   updateWorkspace,
 } from "@/features/workspace/services/workspace-service.ts";
 import { getApiErrorMessage } from "@/lib/api-error.ts";
+import useUserRole from "@/hooks/use-user-role.tsx";
 
 export default function WorkspaceSearchSettings() {
   const { t } = useTranslation();
+  const { isAdmin } = useUserRole();
   const [workspace, setWorkspace] = useAtom(workspaceAtom);
   const [saving, setSaving] = useState(false);
   const [connectionAction, setConnectionAction] = useState<
@@ -35,7 +37,7 @@ export default function WorkspaceSearchSettings() {
   const settings = useQuery({
     queryKey: settingsKey,
     queryFn: getTypesenseSettings,
-    enabled: Boolean(workspace),
+    enabled: Boolean(workspace) && isAdmin,
     refetchOnWindowFocus: false,
     retry: false,
   });
@@ -60,6 +62,7 @@ export default function WorkspaceSearchSettings() {
     });
 
   const handleChange = async (checked: boolean) => {
+    if (!isAdmin) return;
     setSaving(true);
     try {
       const updatedWorkspace = await updateWorkspace({
@@ -79,6 +82,7 @@ export default function WorkspaceSearchSettings() {
   };
 
   const handleConnection = async (action: "save" | "test") => {
+    if (!isAdmin) return;
     setConnectionAction(action);
     const data = {
       locale: locale.trim().toLowerCase(),
@@ -144,12 +148,12 @@ export default function WorkspaceSearchSettings() {
         </div>
         <Switch
           checked={enabled}
-          disabled={busy || !workspace || (!configured && !enabled)}
+          disabled={!isAdmin || busy || !workspace || (!configured && !enabled)}
           onChange={(event) => void handleChange(event.currentTarget.checked)}
           aria-label={t("Use Typesense search")}
         />
       </ResponsiveSettingsRow>
-      {settings.isError && (
+      {isAdmin && settings.isError && (
         <Alert color="red">
           {t("Failed to load Typesense settings.")}{" "}
           <Button
@@ -161,36 +165,38 @@ export default function WorkspaceSearchSettings() {
           </Button>
         </Alert>
       )}
-      <Stack gap="sm" maw={560}>
-        <TextInput
-          label={t("Typesense language")}
-          description={t(
-            "Use zh for Chinese or en for English. Changing the language rebuilds the index.",
-          )}
-          value={locale}
-          onChange={(event) => setLocale(event.currentTarget.value)}
-          disabled={
-            !configured || settings.isPending || settings.isError || busy
-          }
-        />
-        <Group>
-          <Button
-            variant="default"
-            loading={connectionAction === "test"}
-            disabled={!canSubmit || busy || settings.isError}
-            onClick={() => void handleConnection("test")}
-          >
-            {t("Test connection")}
-          </Button>
-          <Button
-            loading={connectionAction === "save"}
-            disabled={!canSubmit || busy || settings.isError}
-            onClick={() => void handleConnection("save")}
-          >
-            {t("Save settings")}
-          </Button>
-        </Group>
-      </Stack>
+      {isAdmin && (
+        <Stack gap="sm" maw={560}>
+          <TextInput
+            label={t("Typesense language")}
+            description={t(
+              "Use zh for Chinese or en for English. Changing the language rebuilds the index.",
+            )}
+            value={locale}
+            onChange={(event) => setLocale(event.currentTarget.value)}
+            disabled={
+              !configured || settings.isPending || settings.isError || busy
+            }
+          />
+          <Group>
+            <Button
+              variant="default"
+              loading={connectionAction === "test"}
+              disabled={!canSubmit || busy || settings.isError}
+              onClick={() => void handleConnection("test")}
+            >
+              {t("Test connection")}
+            </Button>
+            <Button
+              loading={connectionAction === "save"}
+              disabled={!canSubmit || busy || settings.isError}
+              onClick={() => void handleConnection("save")}
+            >
+              {t("Save settings")}
+            </Button>
+          </Group>
+        </Stack>
+      )}
     </Stack>
   );
 }

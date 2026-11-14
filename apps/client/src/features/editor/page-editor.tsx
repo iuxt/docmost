@@ -90,6 +90,7 @@ import { MicrosoftFullscreenModal } from "@/features/editor/components/microsoft
 import { getInstalledIntegrations } from "@/features/integration/services/integration-service";
 import { TransclusionLookupProvider } from "@/features/editor/components/transclusion/transclusion-lookup-context";
 import { useTranslation } from "react-i18next";
+import { normalizeEditorContent } from "@/features/editor/utils/normalize-editor-content";
 import {
   acquireCollabSocket,
   getCollabSocket,
@@ -574,13 +575,18 @@ function StaticPageEditor({
   content: any;
   ariaLabel: string;
 }) {
+  const normalizedContent = useMemo(
+    () => normalizeEditorContent(content),
+    [content],
+  );
+
   return (
     <EditorProvider
       editable={false}
       immediatelyRender={true}
       textDirection="auto"
       extensions={mainExtensions}
-      content={content}
+      content={normalizedContent}
       editorProps={{
         attributes: {
           "aria-label": ariaLabel,

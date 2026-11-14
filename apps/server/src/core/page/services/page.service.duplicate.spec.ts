@@ -5,6 +5,41 @@ const pageId = '019a4f3e-0000-7000-8000-000000000002';
 const attachmentId = '019a4f3e-0000-7000-8000-000000000003';
 
 describe('PageService duplicated attachments', () => {
+  it('does not insert a sibling copy under a parent that was trashed during copying', async () => {
+    const root = {
+      id: pageId,
+      slugId: 'root',
+      workspaceId,
+      spaceId: 'space',
+      parentPageId: 'parent',
+      title: 'Source',
+      position: 'a0',
+      content: { type: 'doc', content: [{ type: 'paragraph' }] },
+    };
+    const service = Object.create(PageService.prototype);
+    service.pageRepo = {
+      getPageAndDescendants: jest.fn(async () => [root]),
+      lockPageHierarchySpaces: jest.fn(),
+      findById: jest.fn(async () => ({
+        id: 'parent',
+        workspaceId,
+        spaceId: 'space',
+        deletedAt: new Date(),
+      })),
+    };
+    service.filterAccessibleTreePages = jest.fn(async () => [root]);
+    service.pagePermissionRepo = {};
+    const insert = jest.fn();
+    service.db = {
+      transaction: () => ({
+        execute: (callback: any) => callback({ insertInto: insert }),
+      }),
+    };
+    await expect(
+      service.duplicatePage(root, undefined, { id: 'user' }),
+    ).rejects.toThrow('Parent page not found');
+    expect(insert).not.toHaveBeenCalled();
+  });
   it.each([
     ['attachment', 'url'],
     ['image', 'src'],
@@ -49,6 +84,7 @@ describe('PageService duplicated attachments', () => {
       {
         getPageAndDescendants: async () => [root],
         findById: async () => root,
+        lockPageHierarchySpaces: jest.fn(),
       } as any,
       {
         findRestrictedAncestor: async () => undefined,

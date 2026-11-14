@@ -1,11 +1,12 @@
 import { Spotlight } from "@mantine/spotlight";
 import { IconSearch, IconSparkles } from "@tabler/icons-react";
-import { Group, Button, VisuallyHidden, Text } from "@mantine/core";
+import { Group, Button, Stack, VisuallyHidden, Text } from "@mantine/core";
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useTranslation } from "react-i18next";
 import { notifications } from "@mantine/notifications";
-import { searchSpotlightStore } from "../constants.ts";
+import { SEARCH_QUERY_MAX_LENGTH, searchSpotlightStore } from "../constants.ts";
+import { getApiErrorMessage } from "@/lib/api-error.ts";
 import { SearchSpotlightFilters } from "./search-spotlight-filters.tsx";
 import { useUnifiedSearch } from "../hooks/use-unified-search.ts";
 import { useAiSearch } from "../../../ee/ai/hooks/use-ai-search.ts";
@@ -77,9 +78,13 @@ export function SearchSpotlight({ spaceId }: SearchSpotlightProps) {
   const {
     data: searchResults,
     isFetching,
+    isError,
+    isPaused,
+    error: searchError,
+    refetch,
   } = useUnifiedSearch(
     searchParams,
-    !isAiMode // Disable regular search when in AI mode
+    !isAiMode, // Disable regular search when in AI mode
   );
   const {
     //@ts-ignore
@@ -107,9 +112,10 @@ export function SearchSpotlight({ spaceId }: SearchSpotlightProps) {
   useEffect(() => {
     if (aiSearchError) {
       notifications.show({
-        message: aiSearchError.message || t("AI search failed. Please try again."),
+        message:
+          aiSearchError.message || t("AI search failed. Please try again."),
         color: "red",
-        position: "top-center"
+        position: "top-center",
       });
     }
   }, [aiSearchError, t]);
@@ -118,6 +124,10 @@ export function SearchSpotlight({ spaceId }: SearchSpotlightProps) {
     (filters.labelIds?.length ?? 0) > 0 || !!filters.creatorId;
   // while the debounce is pending the empty list is not a settled "no results"
   const isQuerySettled = query === debouncedSearchQuery;
+  const searchFailed = isError || isPaused;
+  const searchErrorMessage = isPaused
+    ? t("You are offline. Check your connection and try again.")
+    : getApiErrorMessage(searchError, t("Search failed. Please try again."));
 
   // Determine result type for rendering
   const isAttachmentSearch =
@@ -141,9 +151,12 @@ export function SearchSpotlight({ spaceId }: SearchSpotlightProps) {
     }
   };
 
-  const handleFiltersChange = useCallback((newFilters: any) => {
-    setFilters(newFilters);
-  }, [setFilters]);
+  const handleFiltersChange = useCallback(
+    (newFilters: any) => {
+      setFilters(newFilters);
+    },
+    [setFilters],
+  );
 
   const handleAskClick = () => {
     setIsAiMode(!isAiMode);
@@ -171,12 +184,18 @@ export function SearchSpotlight({ spaceId }: SearchSpotlightProps) {
       >
         <Group gap="xs" px="sm" pt="sm" pb="xs">
           <Spotlight.Search
+            maxLength={SEARCH_QUERY_MAX_LENGTH}
             placeholder={isAiMode ? t("Ask a question...") : t("Search...")}
             aria-label={isAiMode ? t("Ask a question...") : t("Search")}
             leftSection={<IconSearch size={20} stroke={1.5} />}
             style={{ flex: 1 }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && isAiMode && query.trim() && !isAiLoading) {
+              if (
+                e.key === "Enter" &&
+                isAiMode &&
+                query.trim() &&
+                !isAiLoading
+              ) {
                 e.preventDefault();
                 handleAiSearchTrigger();
               }
@@ -215,11 +234,15 @@ export function SearchSpotlight({ spaceId }: SearchSpotlightProps) {
               : query.length > 0 && !isAiLoading && !aiSearchResult
                 ? t("No answer available")
                 : ""
-            : (query.length > 0 || isFilterBrowse) && !isFetching
-              ? resultItems.length === 0
-                ? t("No results found")
-                : t("{{count}} results found", { count: resultItems.length })
-              : ""}
+            : searchFailed
+              ? searchErrorMessage
+              : (query.length > 0 || isFilterBrowse) &&
+                  !isFetching &&
+                  isQuerySettled
+                ? resultItems.length === 0
+                  ? t("No results found")
+                  : t("{{count}} results found", { count: resultItems.length })
+                : ""}
         </VisuallyHidden>
 
         <Spotlight.ActionsList>
@@ -234,42 +257,63 @@ export function SearchSpotlight({ spaceId }: SearchSpotlightProps) {
               {query.length === 0 && (
                 <Spotlight.Empty>{t("Ask a question...")}</Spotlight.Empty>
               )}
-              {query.length > 0 && (isAiLoading || aiSearchResult || streamingAnswer) && (
-                <AiSearchResult
-                  result={aiSearchResult}
-                  isLoading={isAiLoading}
-                  streamingAnswer={streamingAnswer}
-                  streamingSources={streamingSources}
-                />
-              )}
+              {query.length > 0 &&
+                (isAiLoading || aiSearchResult || streamingAnswer) && (
+                  <AiSearchResult
+                    result={aiSearchResult}
+                    isLoading={isAiLoading}
+                    streamingAnswer={streamingAnswer}
+                    streamingSources={streamingSources}
+                  />
+                )}
               {query.length > 0 && !isAiLoading && !aiSearchResult && (
                 <Spotlight.Empty>{t("No answer available")}</Spotlight.Empty>
               )}
             </>
           ) : (
             <>
-              {query.length === 0 && !isFilterBrowse && resultItems.length === 0 && (
-                <Spotlight.Empty>{t("Start typing to search...")}</Spotlight.Empty>
+              {searchFailed && (
+                <Spotlight.Empty>
+                  <Stack gap="xs" align="center" role="alert">
+                    <Text size="sm">{searchErrorMessage}</Text>
+                    <Button
+                      size="xs"
+                      variant="default"
+                      onClick={() => void refetch()}
+                      loading={isFetching}
+                    >
+                      {t("Retry")}
+                    </Button>
+                  </Stack>
+                </Spotlight.Empty>
               )}
+              {query.length === 0 &&
+                !isFilterBrowse &&
+                resultItems.length === 0 && (
+                  <Spotlight.Empty>
+                    {t("Start typing to search...")}
+                  </Spotlight.Empty>
+                )}
 
               {(query.length > 0 || isFilterBrowse) &&
                 !isFetching &&
+                !searchFailed &&
                 isQuerySettled &&
                 resultItems.length === 0 && (
                   <Spotlight.Empty>{t("No results found...")}</Spotlight.Empty>
                 )}
 
-              {resultItems.length > 0 && <>{resultItems}</>}
+              {!searchFailed && resultItems.length > 0 && <>{resultItems}</>}
 
               {(query.length > 0 || isFilterBrowse) &&
                 isFetching &&
                 resultItems.length === 0 && (
-                <Spotlight.Empty>
-                  <Text size="sm" style={{ marginTop: 10 }}>
-                    {t("Searching...")}
-                  </Text>
-                </Spotlight.Empty>
-              )}
+                  <Spotlight.Empty>
+                    <Text size="sm" style={{ marginTop: 10 }}>
+                      {t("Searching...")}
+                    </Text>
+                  </Spotlight.Empty>
+                )}
             </>
           )}
         </Spotlight.ActionsList>

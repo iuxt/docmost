@@ -129,6 +129,7 @@ export class PageService {
     if (createPageDto.parentPageId) {
       const parentPage = await this.pageRepo.findById(
         createPageDto.parentPageId,
+        { trx },
       );
 
       if (
@@ -157,24 +158,28 @@ export class PageService {
       ydoc = createYdocFromJson(prosemirrorJson);
     }
 
-    const page = await this.pageRepo.insertPage({
-      slugId: generateSlugId(),
-      title: createPageDto.title,
-      position: await this.nextPagePosition(
-        createPageDto.spaceId,
-        parentPageId,
-      ),
-      icon: createPageDto.icon,
-      parentPageId: parentPageId,
-      spaceId: createPageDto.spaceId,
-      creatorId: userId,
-      workspaceId: workspaceId,
-      lastUpdatedById: userId,
-      isBase,
-      content,
-      textContent,
-      ydoc,
-    }, trx);
+    const page = await this.pageRepo.insertPage(
+      {
+        slugId: generateSlugId(),
+        title: createPageDto.title,
+        position: await this.nextPagePosition(
+          createPageDto.spaceId,
+          parentPageId,
+          trx,
+        ),
+        icon: createPageDto.icon,
+        parentPageId: parentPageId,
+        spaceId: createPageDto.spaceId,
+        creatorId: userId,
+        workspaceId: workspaceId,
+        lastUpdatedById: userId,
+        isBase,
+        content,
+        textContent,
+        ydoc,
+      },
+      trx,
+    );
 
     if (trx) {
       // Add the watcher inside the caller's transaction so the async worker
@@ -253,6 +258,16 @@ export class PageService {
     user: User,
   ): Promise<Page> {
     if (page.deletedAt) throw new NotFoundException('Page not found');
+    // Validate the complete content request before committing any metadata.
+    const prosemirrorJson =
+      updatePageDto.content !== undefined &&
+      updatePageDto.operation &&
+      updatePageDto.format
+        ? await this.parseProsemirrorContent(
+            updatePageDto.content,
+            updatePageDto.format,
+          )
+        : undefined;
     const contributors = new Set<string>(page.contributorIds);
     contributors.add(user.id);
     const contributorIds = Array.from(contributors);
@@ -267,8 +282,12 @@ export class PageService {
     );
 
     const invalidation = await executeTx(this.db, async (trx) => {
-      const current = await this.pageRepo.findById(page.id, { trx, withLock: true });
-      if (!current || current.deletedAt) throw new NotFoundException('Page not found');
+      const current = await this.pageRepo.findById(page.id, {
+        trx,
+        withLock: true,
+      });
+      if (!current || current.deletedAt)
+        throw new NotFoundException('Page not found');
       await this.pageRepo.updatePage(
         {
           title: updatePageDto.title,
@@ -323,16 +342,11 @@ export class PageService {
         this.logger.warn(`Failed to queue add-page-watchers: ${err.message}`),
       );
 
-    if (
-      updatePageDto.content &&
-      updatePageDto.operation &&
-      updatePageDto.format
-    ) {
+    if (prosemirrorJson !== undefined) {
       await this.updatePageContent(
         page.id,
-        updatePageDto.content,
+        prosemirrorJson,
         updatePageDto.operation,
-        updatePageDto.format,
         user,
       );
     }
@@ -422,7 +436,10 @@ export class PageService {
     if (fields.coverPhoto === undefined) return;
 
     const attachmentId = getCoverAttachmentId(page.coverPhoto);
-    if (!attachmentId || attachmentId === getCoverAttachmentId(fields.coverPhoto)) {
+    if (
+      !attachmentId ||
+      attachmentId === getCoverAttachmentId(fields.coverPhoto)
+    ) {
       return;
     }
 
@@ -436,13 +453,10 @@ export class PageService {
 
   async updatePageContent(
     pageId: string,
-    content: string | object,
+    prosemirrorJson: object,
     operation: ContentOperation,
-    format: ContentFormat,
     user: User,
   ): Promise<void> {
-    const prosemirrorJson = await this.parseProsemirrorContent(content, format);
-
     const documentName = `page.${pageId}`;
     await this.collaborationGateway.handleYjsEvent(
       'updatePageContent',
@@ -841,7 +855,8 @@ export class PageService {
         if (attachmentIds.length > 0) {
           attachmentIds.forEach((attachmentId: string) => {
             // pages that show the same file share one copy of it
-            const newAttachmentId = copiedAttachmentIds.get(attachmentId) ?? uuid7();
+            const newAttachmentId =
+              copiedAttachmentIds.get(attachmentId) ?? uuid7();
             copiedAttachmentIds.set(attachmentId, newAttachmentId);
 
             prosemirrorDoc.descendants((node: PMNode) => {
@@ -870,7 +885,11 @@ export class PageService {
           });
         }
 
-        const coverPhoto = remapCopiedCover(page.coverPhoto, copiedAttachmentIds, uuid7);
+        const coverPhoto = remapCopiedCover(
+          page.coverPhoto,
+          copiedAttachmentIds,
+          uuid7,
+        );
 
         // Update internal page links in mention nodes
         prosemirrorDoc.descendants((node: PMNode) => {
@@ -962,6 +981,21 @@ export class PageService {
     );
 
     const copiedRestrictions = await executeTx(this.db, async (trx) => {
+      await this.pageRepo.lockPageHierarchySpaces([spaceId], trx);
+      if (isDuplicateInSameSpace && rootPage.parentPageId) {
+        const parent = await this.pageRepo.findById(rootPage.parentPageId, {
+          trx,
+          withLock: true,
+        });
+        if (
+          !parent ||
+          parent.deletedAt ||
+          parent.spaceId !== spaceId ||
+          parent.workspaceId !== rootPage.workspaceId
+        ) {
+          throw new NotFoundException('Parent page not found');
+        }
+      }
       await trx.insertInto('pages').values(insertablePages).execute();
       await this.labelRepo.copyLabelsToPages(
         new Map([...pageMap].map(([oldId, entry]) => [oldId, entry.newPageId])),
@@ -1109,10 +1143,7 @@ export class PageService {
     }
 
     const mayLoseAccess = await executeTx(this.db, async (trx) => {
-      await this.pageRepo.lockPageHierarchySpaces(
-        [movedPage.spaceId],
-        trx,
-      );
+      await this.pageRepo.lockPageHierarchySpaces([movedPage.spaceId], trx);
 
       const currentPage = await this.pageRepo.findById(movedPage.id, { trx });
       if (!currentPage || currentPage.deletedAt) {
@@ -1330,27 +1361,11 @@ export class PageService {
   }
 
   async forceDelete(pageId: string, workspaceId: string): Promise<void> {
-    // Get all descendant IDs (including the page itself) using recursive CTE
-    const descendants = await this.db
-      .withRecursive('page_descendants', (db) =>
-        db
-          .selectFrom('pages')
-          .select(['id'])
-          .where('id', '=', pageId)
-          .unionAll((exp) =>
-            exp
-              .selectFrom('pages as p')
-              .select(['p.id'])
-              .innerJoin('page_descendants as pd', 'pd.id', 'p.parentPageId'),
-          ),
-      )
-      .selectFrom('page_descendants')
-      .selectAll()
-      .execute();
+    const pageIds = await this.pageRepo.deletePageTree(pageId, workspaceId);
+    if (!pageIds.length) return;
+    this.eventEmitter.emit(EventName.PAGE_DELETED, { pageIds, workspaceId });
 
-    const pageIds = descendants.map((d) => d.id);
-
-    // Queue attachment deletion for all pages with unique job IDs to prevent duplicates
+    // Storage is irreversible: only queue cleanup after the deletion commits.
     for (const id of pageIds) {
       await this.attachmentQueue.add(
         QueueJob.DELETE_PAGE_ATTACHMENTS,
@@ -1366,14 +1381,6 @@ export class PageService {
           },
         },
       );
-    }
-
-    if (pageIds.length > 0) {
-      await this.db.deleteFrom('pages').where('id', 'in', pageIds).execute();
-      this.eventEmitter.emit(EventName.PAGE_DELETED, {
-        pageIds: pageIds,
-        workspaceId,
-      });
     }
   }
 

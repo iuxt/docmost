@@ -1,6 +1,7 @@
 import {
   afterUnloadDocumentPayload,
   beforeHandleAwarenessPayload,
+  beforeUnloadDocumentPayload,
   Extension,
   onChangePayload,
   onLoadDocumentPayload,
@@ -48,6 +49,8 @@ export class PersistenceExtension implements Extension {
   private readonly logger = new Logger(PersistenceExtension.name);
   private contributors: Map<string, Set<string>> = new Map();
   private lastChangeAt = new Map<string, number>();
+  private storeRetries = new Map<string, ReturnType<typeof setTimeout>>();
+  private failedStores = new Set<string>();
 
   constructor(
     private readonly pageRepo: PageRepo,
@@ -108,6 +111,7 @@ export class PersistenceExtension implements Extension {
 
   async onStoreDocument(data: onStoreDocumentPayload) {
     const { documentName, document, lastContext } = data;
+    this.clearStoreRetry(documentName);
 
     const pageId = getPageId(documentName);
     const lastChangeAt = this.lastChangeAt.get(documentName);
@@ -198,12 +202,26 @@ export class PersistenceExtension implements Extension {
       });
     } catch (err) {
       this.logger.error(`Failed to update page ${pageId}`, err);
+      this.failedStores.add(documentName);
       page = null;
       invalidation = null;
       editingUserIds.forEach((userId) =>
         this.trackContributor(documentName, userId),
       );
+      // A rejected hook keeps the document in Hocuspocus memory. Retry even
+      // when the last reader has disconnected and no new edits will arrive.
+      if (data.instance) {
+        const timer = setTimeout(() => {
+          this.storeRetries.delete(documentName);
+          if (data.instance.documents.get(documentName) !== document) return;
+          void data.instance.storeDocumentHooks(document, data, true);
+        }, 5000);
+        timer.unref?.();
+        this.storeRetries.set(documentName, timer);
+      }
+      throw err;
     }
+    this.failedStores.delete(documentName);
 
     if (invalidation) {
       await this.pageVerificationInvalidationService.notifyInvalidated(
@@ -306,6 +324,8 @@ export class PersistenceExtension implements Extension {
   }
 
   async onChange(data: onChangePayload) {
+    // New changes already schedule a store with their latest context.
+    this.clearStoreRetry(data.documentName);
     this.lastChangeAt.set(data.documentName, Date.now());
     const userId = data.context?.user?.id;
     if (!userId) return;
@@ -322,8 +342,27 @@ export class PersistenceExtension implements Extension {
 
   async afterUnloadDocument(data: afterUnloadDocumentPayload) {
     const documentName = data.documentName;
+    this.clearStoreRetry(documentName);
     this.contributors.delete(documentName);
     this.lastChangeAt.delete(documentName);
+    this.failedStores.delete(documentName);
+  }
+
+  async beforeUnloadDocument({ documentName }: beforeUnloadDocumentPayload) {
+    // Direct connections also request unload after a failed store hook.
+    if (this.failedStores.has(documentName)) {
+      throw new Error('Document has unsaved changes');
+    }
+  }
+
+  private clearStoreRetry(documentName: string) {
+    const timer = this.storeRetries.get(documentName);
+    if (timer) clearTimeout(timer);
+    this.storeRetries.delete(documentName);
+  }
+
+  async onDestroy() {
+    for (const name of this.storeRetries.keys()) this.clearStoreRetry(name);
   }
 
   private consumeContributors(documentName: string): string[] {

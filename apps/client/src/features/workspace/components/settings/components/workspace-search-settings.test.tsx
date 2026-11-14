@@ -36,7 +36,7 @@ vi.mock("@mantine/notifications", () => ({
   notifications: { show: vi.fn() },
 }));
 
-function setup(overrides: Partial<IWorkspace> = {}) {
+function setup(overrides: Partial<IWorkspace> = {}, role = "owner") {
   const workspace = {
     id: "workspace-1",
     settings: {},
@@ -45,7 +45,10 @@ function setup(overrides: Partial<IWorkspace> = {}) {
     ...overrides,
   } as IWorkspace;
   const store = createStore();
-  store.set(currentUserAtom, { user: { id: "user-1" }, workspace } as any);
+  store.set(currentUserAtom, {
+    user: { id: "user-1", role },
+    workspace,
+  } as any);
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -91,6 +94,16 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Workspace search settings", () => {
+  it("shows members read-only search status without requesting admin settings", () => {
+    const { toggle } = setup({}, "member");
+    expect(toggle.disabled).toBe(true);
+    expect(getTypesenseSettings).not.toHaveBeenCalled();
+    expect(screen.queryByText("Failed to load Typesense settings.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(screen.queryByLabelText("Typesense language")).toBeNull();
+    fireEvent.click(toggle);
+    expect(updateWorkspace).not.toHaveBeenCalled();
+  });
   it("shows the inherited effective driver", () => {
     const { toggle } = setup({ searchDriver: "typesense" });
     expect(toggle.checked).toBe(true);

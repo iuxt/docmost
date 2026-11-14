@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB, KyselyTransaction } from '../../types/kysely.types';
 import { dbOrTx, executeTx } from '../../utils';
@@ -185,12 +189,32 @@ export class PageRepo {
     insertablePage: InsertablePage,
     trx?: KyselyTransaction,
   ): Promise<Page> {
-    const db = dbOrTx(this.db, trx);
-    const result = await db
-      .insertInto('pages')
-      .values(insertablePage)
-      .returning(this.baseFields)
-      .executeTakeFirst();
+    const result = await executeTx(
+      this.db,
+      async (tx) => {
+        await this.lockPageHierarchySpaces([insertablePage.spaceId], tx);
+        if (insertablePage.parentPageId) {
+          const parent = await this.findById(insertablePage.parentPageId, {
+            trx: tx,
+            withLock: true,
+          });
+          if (
+            !parent ||
+            parent.deletedAt ||
+            parent.spaceId !== insertablePage.spaceId ||
+            parent.workspaceId !== insertablePage.workspaceId
+          ) {
+            throw new NotFoundException('Parent page not found');
+          }
+        }
+        return tx
+          .insertInto('pages')
+          .values(insertablePage)
+          .returning(this.baseFields)
+          .executeTakeFirst();
+      },
+      trx,
+    );
 
     this.eventEmitter.emit(EventName.PAGE_CREATED, {
       pageIds: [result.id],
@@ -217,31 +241,35 @@ export class PageRepo {
     deletedById: string,
     workspaceId: string,
   ): Promise<void> {
-    const currentDate = new Date();
+    const pageIds = await executeTx(this.db, async (trx) => {
+      const root = await this.lockPageTreeRoot(pageId, workspaceId, trx);
+      if (!root || root.deletedAt) return [];
+      const currentDate = new Date();
+      const descendants = await trx
+        .withRecursive('page_descendants', (db) =>
+          db
+            .selectFrom('pages')
+            .select(['id'])
+            .where('id', '=', pageId)
+            .where('workspaceId', '=', workspaceId)
+            .where('spaceId', '=', root.spaceId)
+            .where('deletedAt', 'is', null)
+            .unionAll((exp) =>
+              exp
+                .selectFrom('pages as p')
+                .select(['p.id'])
+                .innerJoin('page_descendants as pd', 'pd.id', 'p.parentPageId')
+                .where('p.workspaceId', '=', workspaceId)
+                .where('p.spaceId', '=', root.spaceId)
+                .where('p.deletedAt', 'is', null),
+            ),
+        )
+        .selectFrom('page_descendants')
+        .selectAll()
+        .execute();
 
-    const descendants = await this.db
-      .withRecursive('page_descendants', (db) =>
-        db
-          .selectFrom('pages')
-          .select(['id'])
-          .where('id', '=', pageId)
-          .where('deletedAt', 'is', null)
-          .unionAll((exp) =>
-            exp
-              .selectFrom('pages as p')
-              .select(['p.id'])
-              .innerJoin('page_descendants as pd', 'pd.id', 'p.parentPageId')
-              .where('p.deletedAt', 'is', null),
-          ),
-      )
-      .selectFrom('page_descendants')
-      .selectAll()
-      .execute();
-
-    const pageIds = descendants.map((d) => d.id);
-
-    if (pageIds.length > 0) {
-      await executeTx(this.db, async (trx) => {
+      const pageIds = descendants.map((d) => d.id);
+      if (pageIds.length > 0) {
         await trx
           .updateTable('pages')
           .set({
@@ -259,13 +287,72 @@ export class PageRepo {
           .set({ homePageId: null })
           .where('homePageId', 'in', pageIds)
           .execute();
-      });
-
+      }
+      return pageIds;
+    });
+    if (pageIds.length > 0) {
       this.eventEmitter.emit(EventName.PAGE_SOFT_DELETED, {
         pageIds: pageIds,
         workspaceId,
       });
     }
+  }
+
+  // Read the current space again after taking its hierarchy lock. A concurrent
+  // cross-space move must finish before we decide which tree to delete.
+  private async lockPageTreeRoot(
+    pageId: string,
+    workspaceId: string,
+    trx: KyselyTransaction,
+  ) {
+    const candidate = await trx
+      .selectFrom('pages')
+      .select('spaceId')
+      .where('id', '=', pageId)
+      .where('workspaceId', '=', workspaceId)
+      .executeTakeFirst();
+    if (!candidate) return;
+    await this.lockPageHierarchySpaces([candidate.spaceId], trx);
+    const root = await trx
+      .selectFrom('pages')
+      .select(['id', 'spaceId', 'deletedAt'])
+      .where('id', '=', pageId)
+      .where('workspaceId', '=', workspaceId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (root && root.spaceId !== candidate.spaceId) {
+      // Retrying from a new transaction avoids acquiring space locks out of order.
+      throw new ConflictException('Page moved while deleting; please retry');
+    }
+    return root;
+  }
+
+  async deletePageTree(pageId: string, workspaceId: string): Promise<string[]> {
+    return executeTx(this.db, async (trx) => {
+      const root = await this.lockPageTreeRoot(pageId, workspaceId, trx);
+      if (!root) return [];
+      const descendants = await trx
+        .withRecursive('page_descendants', (db) =>
+          db
+            .selectFrom('pages')
+            .select('id')
+            .where('id', '=', root.id)
+            .unionAll((qb) =>
+              qb
+                .selectFrom('pages as p')
+                .select('p.id')
+                .innerJoin('page_descendants as pd', 'pd.id', 'p.parentPageId')
+                .where('p.workspaceId', '=', workspaceId)
+                .where('p.spaceId', '=', root.spaceId),
+            ),
+        )
+        .selectFrom('page_descendants')
+        .selectAll()
+        .execute();
+      const ids = descendants.map((page) => page.id);
+      await trx.deleteFrom('pages').where('id', 'in', ids).execute();
+      return ids;
+    });
   }
 
   async restorePage(pageId: string, workspaceId: string): Promise<void> {

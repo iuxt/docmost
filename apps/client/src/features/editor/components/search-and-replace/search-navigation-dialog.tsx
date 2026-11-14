@@ -1,4 +1,12 @@
-import { ActionIcon, Dialog, Flex, rem, Text, Tooltip } from "@mantine/core";
+import {
+  ActionIcon,
+  Dialog,
+  Flex,
+  getDefaultZIndex,
+  rem,
+  Text,
+  Tooltip,
+} from "@mantine/core";
 import {
   IconArrowNarrowDown,
   IconArrowNarrowUp,
@@ -152,6 +160,7 @@ function SearchNavigationDialog({ editor }: SearchNavigationDialogProps) {
   return (
     <Dialog
       className={classes.findDialog}
+      zIndex={getDefaultZIndex("modal") - 1}
       opened={open}
       size="xs"
       radius="md"
